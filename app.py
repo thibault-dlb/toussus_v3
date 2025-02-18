@@ -1,14 +1,9 @@
 import wx, csv, os, re, hashlib
 from ressources import allinfos as infos
 
-regex_mail = r'^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-regex_tel = r'^0[1-9](?:[\s.-]?\d{2}){4}$'
-regex_prenom = r'^[a-zA-ZàáâäãåèéêëìíîïòóôöõùúûüÿýçčćďđłńňśšťžżÁÀÂÄÃÅÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜŸÝÇČĆĎĐŁŃŇŚŠŤŽŻ\-\' ]+$'
-regex_nom = r'^[a-zA-ZàáâäãåèéêëìíîïòóôöõùúûüÿýçčćďđłńňśšťžżÁÀÂÄÃÅÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜŸÝÇČĆĎĐŁŃŇŚŠŤŽŻ\-\' ]+$'
-
 icon_path = os.path.join(infos.path, "main_icon.ico")
 
-class SignUpFrame (wx.Frame):
+class SignUpFrame(wx.Frame):
     def __init__(self):
         super().__init__(parent=None, title="ATCF parts - Connexion", size=(300, 210))
         # Icone de la fenêtre
@@ -62,19 +57,43 @@ class SignUpFrame (wx.Frame):
         username = self.ctrl_main.GetValue()
         password = self.ctrl_snd.GetValue()
         new_hash = hashlib.sha256(password.encode()).hexdigest()
-        with open(infos.path+"/users.csv", "r") as f:
+        with open(infos.path + "/users.csv", "r") as f:
             reader = csv.reader(f, delimiter=";")
             for row in reader:
                 if row[0] == username and row[1] == new_hash:
                     self.first_name = row[3]
                     self.isAdmin = row[6]
-                    print (f"Connexion réussie pour {self.first_name}")
-                    print (f"Admin : {self.isAdmin}")
+                    print(f"Connexion réussie pour {self.first_name}")
+                    print(f"Admin : {self.isAdmin}")
                     self.Close(True)
+                    MainMenu(username, self.first_name, self.isAdmin)
                     return
         # message box d'erreur
         wx.MessageDialog(self, "Nom d'utilisateur ou mot de passe incorrect", "Erreur", wx.OK | wx.ICON_ERROR).ShowModal()
+
+
+
+class MainMenu(wx.Frame):
+    def __init__(self, username, first_name, isAdmin):
+        super().__init__(parent=None, title=f"{infos.name_main} - Bienvenue", size=(300, 210))
+        self.username = username
+        self.first_name = first_name
+        self.isAdmin = isAdmin
         
+        # Affichage des informations
+        panel = wx.Panel(self)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        
+        welcome_text = wx.StaticText(panel, label=f"Bienvenue {self.first_name}")
+        admin_text = wx.StaticText(panel, label=f"Admin: {self.isAdmin}")
+        
+        sizer.Add(welcome_text, 0, wx.ALL | wx.CENTER, 10)
+        sizer.Add(admin_text, 0, wx.ALL | wx.CENTER, 10)
+        
+        panel.SetSizer(sizer)
+        self.Centre()
+        self.Show()
+
 if __name__ == "__main__":
     app = wx.App(False)
     frame = SignUpFrame()
