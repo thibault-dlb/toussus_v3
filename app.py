@@ -1,7 +1,6 @@
 import wx, csv, os, re, hashlib
 from ressources import allinfos as infos
 
-
 regex_mail = r'^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
 regex_tel = r'^0[1-9](?:[\s.-]?\d{2}){4}$'
 regex_prenom = r'^[a-zA-ZàáâäãåèéêëìíîïòóôöõùúûüÿýçčćďđłńňśšťžżÁÀÂÄÃÅÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜŸÝÇČĆĎĐŁŃŇŚŠŤŽŻ\-\' ]+$'
@@ -23,18 +22,18 @@ class SignUpFrame (wx.Frame):
         
         # Création des widgets
         self.label_main = wx.StaticText(self.panel, label="Nom d'utilisateur")
-        self.ctrl_main = wx.TextCtrl(self.panel, style=wx.TE_PROCESS_ENTER | wx.NO_BORDER)
+        self.ctrl_main = wx.TextCtrl(self.panel, style=wx.TE_PROCESS_ENTER)
         self.label_snd = wx.StaticText(self.panel, label="Mot de passe")
-        self.ctrl_snd = wx.TextCtrl(self.panel, style=wx.TE_PASSWORD | wx.TE_PROCESS_ENTER | wx.NO_BORDER)
-        self.btn_next = wx.Button(self.panel, label="Suivant", style=wx.NO_BORDER)
+        self.ctrl_snd = wx.TextCtrl(self.panel, style=wx.TE_PASSWORD | wx.TE_PROCESS_ENTER)
+        self.btn_next = wx.Button(self.panel, label="Suivant")
         
         # Couleurs
-        self.panel.SetBackgroundColour(infos.bg_color)
-        self.ctrl_main.SetBackgroundColour(infos.ctrl_color)
-        self.ctrl_snd.SetBackgroundColour(infos.ctrl_color)
-        self.label_main.SetForegroundColour(infos.label_color)
-        self.label_snd.SetForegroundColour(infos.label_color)
-        self.btn_next.SetBackgroundColour(infos.ctrl_color)
+        # self.panel.SetBackgroundColour(infos.bg_color)
+        # self.ctrl_main.SetBackgroundColour(infos.ctrl_color)
+        # self.ctrl_snd.SetBackgroundColour(infos.ctrl_color)
+        # self.label_main.SetForegroundColour(infos.label_color)
+        # self.label_snd.SetForegroundColour(infos.label_color)
+        # self.btn_next.SetBackgroundColour(infos.ctrl_color)
         
         # Actions
         self.btn_next.Bind(wx.EVT_BUTTON, self.on_next)
@@ -60,19 +59,21 @@ class SignUpFrame (wx.Frame):
             self.check_connexion()
     
     def check_connexion(self):
-        password = self.ctrl_snd.GetValue()
         username = self.ctrl_main.GetValue()
+        password = self.ctrl_snd.GetValue()
         new_hash = hashlib.sha256(password.encode()).hexdigest()
-        f = open(infos.path+"/users.csv", "r")
-        for row in csv.reader(f, delimiter=";"):
-            if row[0] == username and row[1] == new_hash :
-                self.firstname = row[3]
-                self.isAdmin = row[6]
-                print(f"{self.firstname} est admin : {self.isAdmin}")
-                f.close()
-                self.Close(True)
-                pass
-        f.close()
+        with open(infos.path+"/users.csv", "r") as f:
+            reader = csv.reader(f, delimiter=";")
+            for row in reader:
+                if row[0] == username and row[1] == new_hash:
+                    self.first_name = row[3]
+                    self.isAdmin = row[6]
+                    print (f"Connexion réussie pour {self.first_name}")
+                    print (f"Admin : {self.isAdmin}")
+                    self.Close(True)
+                    return
+        # message box d'erreur
+        wx.MessageDialog(self, "Nom d'utilisateur ou mot de passe incorrect", "Erreur", wx.OK | wx.ICON_ERROR).ShowModal()
         
 if __name__ == "__main__":
     app = wx.App(False)
