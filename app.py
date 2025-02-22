@@ -71,8 +71,6 @@ class SignUpFrame(wx.Frame):
         # message box d'erreur
         wx.MessageDialog(self, "Nom d'utilisateur ou mot de passe incorrect", "Erreur", wx.OK | wx.ICON_ERROR).ShowModal()
 
-
-
 class MainMenu(wx.Frame):
     def __init__(self, username, first_name, isAdmin):
         super().__init__(parent=None, title=f"{infos.name_main} - Bienvenue", size=(300, 210))
@@ -80,19 +78,25 @@ class MainMenu(wx.Frame):
         self.first_name = first_name
         self.isAdmin = isAdmin
         
-        # Affichage des informations
-        panel = wx.Panel(self)
-        sizer = wx.BoxSizer(wx.VERTICAL)
+        # Icone de la fenêtre
+        icon = wx.Icon(icon_path, wx.BITMAP_TYPE_ICO)
+        self.SetIcon(icon)
         
-        welcome_text = wx.StaticText(panel, label=f"Bienvenue {self.first_name}")
-        admin_text = wx.StaticText(panel, label=f"Admin: {self.isAdmin}")
+        # Notebook
+        self.notebook = wx.Notebook(self)
+        self.panel_name = "Menu principal"
         
-        sizer.Add(welcome_text, 0, wx.ALL | wx.CENTER, 10)
-        sizer.Add(admin_text, 0, wx.ALL | wx.CENTER, 10)
+        # Splitter
+        self.splitter = wx.SplitterWindow(self.notebook)
+        self.splitter.SetMinimumPaneSize(50)
+        self.splitter.SetSashGravity(0.5)
         
-        panel.SetSizer(sizer)
+        
+        # Affichage du menu principal
         self.Centre()
         self.Show()
+        
+        
 
 if __name__ == "__main__":
     app = wx.App(False)
