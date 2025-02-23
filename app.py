@@ -62,18 +62,19 @@ class SignUpFrame(wx.Frame):
             for row in reader:
                 if row[0] == username and row[1] == new_hash:
                     self.first_name = row[3]
-                    self.isAdmin = row[6]
+                    self.isAdmin = True if row[6]=="True" else False
                     print(f"Connexion réussie pour {self.first_name}")
                     print(f"Admin : {self.isAdmin}")
                     self.Close(True)
-                    MainMenu(username, self.first_name, self.isAdmin)
+                    main_menu = MainMenu(username, self.first_name, self.isAdmin)
+                    main_menu.Show()
                     return
         # message box d'erreur
         wx.MessageDialog(self, "Nom d'utilisateur ou mot de passe incorrect", "Erreur", wx.OK | wx.ICON_ERROR).ShowModal()
 
 class MainMenu(wx.Frame):
     def __init__(self, username, first_name, isAdmin):
-        super().__init__(parent=None, title=f"{infos.name_main} - Bienvenue", size=(300, 210))
+        super().__init__(parent=None, title=f"{infos.name_main} - Bienvenue", size=(800, 600))
         self.username = username
         self.first_name = first_name
         self.isAdmin = isAdmin
@@ -82,20 +83,51 @@ class MainMenu(wx.Frame):
         icon = wx.Icon(icon_path, wx.BITMAP_TYPE_ICO)
         self.SetIcon(icon)
         
-        # Notebook
+        # Création du Sizer principal (notebook)
         self.notebook = wx.Notebook(self)
-        self.panel_name = "Menu principal"
+        self.panel_name = "Main Menu"
         
-        # Splitter
-        self.splitter = wx.SplitterWindow(self.notebook)
-        self.splitter.SetMinimumPaneSize(50)
-        self.splitter.SetSashGravity(0.5)
+        # Création onglet principal
+        self.panel_1 = wx.Panel(self.notebook)
+        self.panel_1.SetBackgroundColour("light blue")
+        self.notebook.AddPage(self.panel_1, "Accueil")
+        self.sizer_1 = wx.BoxSizer(wx.VERTICAL)
         
+        # Création des widgets
+        self.btn_logout = wx.Button(self.panel_1, label="Déconnexion")
+        self.btn_infos = wx.Button(self.panel_1, label="Informations")
+        self.btn_settings = wx.Button(self.panel_1, label="Paramètres")   
+        self.label_welcome = wx.StaticText(self.panel_1, label=f"Bienvenue {self.first_name}")
+        self.btn_add = wx.Button(self.panel_1, label="Ajouter du matériel")
+        self.btn_withdraw = wx.Button(self.panel_1, label="Retirer du matériel")
+        self.btn_search = wx.Button(self.panel_1, label="Rechercher du matériel")
+        self.btn_stats = wx.Button(self.panel_1, label="Statistiques")
+        if self.isAdmin:
+            self.btn_users = wx.Button(self.panel_1, label="Gestion des utilisateurs")
         
-        # Affichage du menu principal
+        # Ajouts des widgets
+        self.sizer_1.Add(self.label_welcome, 0, wx.UP | wx.CENTER, 10)
+        self.sizer_1.Add(self.btn_add, 0, wx.UP | wx.CENTER, 10)
+        self.sizer_1.Add(self.btn_withdraw, 0, wx.UP | wx.CENTER, 10)
+        self.sizer_1.Add(self.btn_search, 0, wx.UP | wx.CENTER, 10)
+        self.sizer_1.Add(self.btn_stats, 0, wx.UP | wx.CENTER, 10)
+        if self.isAdmin:
+            self.sizer_1.Add(self.btn_users, 0, wx.UP | wx.CENTER, 10)
+        self.sizer_1.Add(self.btn_infos, 0, wx.UP | wx.CENTER, 10)
+        self.sizer_1.Add(self.btn_settings, 0, wx.UP | wx.CENTER, 10)
+        self.sizer_1.Add(self.btn_logout, 0, wx.UP | wx.CENTER, 10)
+        
+        # Ajout du Sizer au panel
+        self.panel_1.SetSizer(self.sizer_1)
+        
+        # Ajout du notebook au Sizer principal
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+        main_sizer.Add(self.notebook, 1, wx.EXPAND)
+        self.SetSizer(main_sizer)
+        
+        # Affichage
         self.Centre()
         self.Show()
-        
         
 
 if __name__ == "__main__":
