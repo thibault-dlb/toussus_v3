@@ -1,136 +1,88 @@
-import wx, csv, os, re, hashlib
+import customtkinter as ctk
+import csv, os, re, hashlib
 from ressources import allinfos as infos
 
 icon_path = os.path.join(infos.path, "main_icon.ico")
 
-class SignUpFrame(wx.Frame):
+class SignUpFrame(ctk.CTk):
     def __init__(self):
-        super().__init__(parent=None, title="ATCF parts - Connexion", size=(300, 210))
-        # Icone de la fenêtre
-        icon = wx.Icon(icon_path, wx.BITMAP_TYPE_ICO)
-        self.SetIcon(icon)
-        self.panel = wx.Panel(self)
-        self.panel_name = "Connexion"
-        
-        # Création du Sizer
-        self.main_sizer = wx.BoxSizer(wx.VERTICAL)        
+        super().__init__()
+        self.title("ATCF parts - Connexion")
+        self.geometry("300x210")
         
         # Création des widgets
-        self.label_main = wx.StaticText(self.panel, label="Nom d'utilisateur")
-        self.ctrl_main = wx.TextCtrl(self.panel, style=wx.TE_PROCESS_ENTER)
-        self.label_snd = wx.StaticText(self.panel, label="Mot de passe")
-        self.ctrl_snd = wx.TextCtrl(self.panel, style=wx.TE_PASSWORD | wx.TE_PROCESS_ENTER)
-        self.btn_next = wx.Button(self.panel, label="Suivant")
-        
-        # Couleurs
-        # self.panel.SetBackgroundColour(infos.bg_color)
-        # self.ctrl_main.SetBackgroundColour(infos.ctrl_color)
-        # self.ctrl_snd.SetBackgroundColour(infos.ctrl_color)
-        # self.label_main.SetForegroundColour(infos.label_color)
-        # self.label_snd.SetForegroundColour(infos.label_color)
-        # self.btn_next.SetBackgroundColour(infos.ctrl_color)
-        
-        # Actions
-        self.btn_next.Bind(wx.EVT_BUTTON, self.on_next)
-        self.ctrl_main.Bind(wx.EVT_TEXT_ENTER, self.on_next)
-        self.ctrl_snd.Bind(wx.EVT_TEXT_ENTER, self.on_next)
+        self.label_main = ctk.CTkLabel(self, text="Nom d'utilisateur")
+        self.ctrl_main = ctk.CTkEntry(self)
+        self.label_snd = ctk.CTkLabel(self, text="Mot de passe")
+        self.ctrl_snd = ctk.CTkEntry(self, show="*")
+        self.btn_next = ctk.CTkButton(self, text="Suivant", command=self.on_next)
         
         # Ajout des widgets
-        self.main_sizer.Add(self.label_main, 0, wx.UP | wx.CENTER, 15)
-        self.main_sizer.Add(self.ctrl_main, 0, wx.UP | wx.CENTER, 10)
-        self.main_sizer.Add(self.label_snd, 0, wx.UP | wx.CENTER, 10)
-        self.main_sizer.Add(self.ctrl_snd, 0, wx.UP | wx.CENTER, 10)
-        self.main_sizer.Add(self.btn_next, 0, wx.UP | wx.CENTER, 10)
-        
-        # Ajout du Sizer au panel
-        self.panel.SetSizer(self.main_sizer)
+        self.label_main.pack(pady=10)
+        self.ctrl_main.pack(pady=10)
+        self.label_snd.pack(pady=10)
+        self.ctrl_snd.pack(pady=10)
+        self.btn_next.pack(pady=10)
         
         # Affichage de la fenêtre
-        self.Centre()
-        self.Show()
+        self.mainloop()
     
-    def on_next(self, event):
-        if self.panel_name == "Connexion":
-            self.check_connexion()
+    def on_next(self):
+        self.check_connexion()
     
     def check_connexion(self):
-        username = self.ctrl_main.GetValue()
-        password = self.ctrl_snd.GetValue()
+        username = self.ctrl_main.get()
+        password = self.ctrl_snd.get()
         new_hash = hashlib.sha256(password.encode()).hexdigest()
         with open(infos.path + "/users.csv", "r") as f:
             reader = csv.reader(f, delimiter=";")
             for row in reader:
                 if row[0] == username and row[1] == new_hash:
                     self.first_name = row[3]
-                    self.isAdmin = True if row[6]=="True" else False
+                    self.isAdmin = row[6] == "True"
                     print(f"Connexion réussie pour {self.first_name}")
                     print(f"Admin : {self.isAdmin}")
-                    self.Close(True)
+                    self.destroy()
                     main_menu = MainMenu(username, self.first_name, self.isAdmin)
-                    main_menu.Show()
+                    main_menu.mainloop()
                     return
         # message box d'erreur
-        wx.MessageDialog(self, "Nom d'utilisateur ou mot de passe incorrect", "Erreur", wx.OK | wx.ICON_ERROR).ShowModal()
+        ctk.CTkMessageBox.show_error("Erreur", "Nom d'utilisateur ou mot de passe incorrect")
 
-class MainMenu(wx.Frame):
+class MainMenu(ctk.CTk):
     def __init__(self, username, first_name, isAdmin):
-        super().__init__(parent=None, title=f"{infos.name_main} - Bienvenue", size=(800, 600))
+        super().__init__()
+        self.title(f"{infos.name_main} - Bienvenue")
+        self.geometry("800x600")
         self.username = username
         self.first_name = first_name
         self.isAdmin = isAdmin
         
-        # Icone de la fenêtre
-        icon = wx.Icon(icon_path, wx.BITMAP_TYPE_ICO)
-        self.SetIcon(icon)
-        
-        # Création du Sizer principal (notebook)
-        self.notebook = wx.Notebook(self)
-        self.panel_name = "Main Menu"
-        
-        # Création onglet principal
-        self.panel_1 = wx.Panel(self.notebook)
-        self.panel_1.SetBackgroundColour("light blue")
-        self.notebook.AddPage(self.panel_1, "Accueil")
-        self.sizer_1 = wx.BoxSizer(wx.VERTICAL)
-        
         # Création des widgets
-        self.btn_logout = wx.Button(self.panel_1, label="Déconnexion")
-        self.btn_infos = wx.Button(self.panel_1, label="Informations")
-        self.btn_settings = wx.Button(self.panel_1, label="Paramètres")   
-        self.label_welcome = wx.StaticText(self.panel_1, label=f"Bienvenue {self.first_name}")
-        self.btn_add = wx.Button(self.panel_1, label="Ajouter du matériel")
-        self.btn_withdraw = wx.Button(self.panel_1, label="Retirer du matériel")
-        self.btn_search = wx.Button(self.panel_1, label="Rechercher du matériel")
-        self.btn_stats = wx.Button(self.panel_1, label="Statistiques")
+        self.label_welcome = ctk.CTkLabel(self, text=f"Bienvenue {self.first_name}")
+        self.btn_add = ctk.CTkButton(self, text="Ajouter du matériel")
+        self.btn_withdraw = ctk.CTkButton(self, text="Retirer du matériel")
+        self.btn_search = ctk.CTkButton(self, text="Rechercher du matériel")
+        self.btn_stats = ctk.CTkButton(self, text="Statistiques")
+        self.btn_users = ctk.CTkButton(self, text="Gestion des utilisateurs") if self.isAdmin else None
+        self.btn_infos = ctk.CTkButton(self, text="Informations")
+        self.btn_settings = ctk.CTkButton(self, text="Paramètres")
+        self.btn_logout = ctk.CTkButton(self, text="Déconnexion")
+        
+        # Ajout des widgets
+        self.label_welcome.pack(pady=10)
+        self.btn_add.pack(pady=10)
+        self.btn_withdraw.pack(pady=10)
+        self.btn_search.pack(pady=10)
+        self.btn_stats.pack(pady=10)
         if self.isAdmin:
-            self.btn_users = wx.Button(self.panel_1, label="Gestion des utilisateurs")
+            self.btn_users.pack(pady=10)
+        self.btn_infos.pack(pady=10)
+        self.btn_settings.pack(pady=10)
+        self.btn_logout.pack(pady=10)
         
-        # Ajouts des widgets
-        self.sizer_1.Add(self.label_welcome, 0, wx.UP | wx.CENTER, 10)
-        self.sizer_1.Add(self.btn_add, 0, wx.UP | wx.CENTER, 10)
-        self.sizer_1.Add(self.btn_withdraw, 0, wx.UP | wx.CENTER, 10)
-        self.sizer_1.Add(self.btn_search, 0, wx.UP | wx.CENTER, 10)
-        self.sizer_1.Add(self.btn_stats, 0, wx.UP | wx.CENTER, 10)
-        if self.isAdmin:
-            self.sizer_1.Add(self.btn_users, 0, wx.UP | wx.CENTER, 10)
-        self.sizer_1.Add(self.btn_infos, 0, wx.UP | wx.CENTER, 10)
-        self.sizer_1.Add(self.btn_settings, 0, wx.UP | wx.CENTER, 10)
-        self.sizer_1.Add(self.btn_logout, 0, wx.UP | wx.CENTER, 10)
-        
-        # Ajout du Sizer au panel
-        self.panel_1.SetSizer(self.sizer_1)
-        
-        # Ajout du notebook au Sizer principal
-        main_sizer = wx.BoxSizer(wx.VERTICAL)
-        main_sizer.Add(self.notebook, 1, wx.EXPAND)
-        self.SetSizer(main_sizer)
-        
-        # Affichage
-        self.Centre()
-        self.Show()
-        
+        # Affichage de la fenêtre
+        self.mainloop()
 
 if __name__ == "__main__":
-    app = wx.App(False)
-    frame = SignUpFrame()
-    app.MainLoop()
+    app = SignUpFrame()
