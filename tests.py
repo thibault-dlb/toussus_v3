@@ -1,29 +1,15 @@
-import wx
+import sqlite3
 
-class SplitterExample(wx.Frame):
-    def __init__(self):
-        super().__init__(None, title="wxSplitterWindow Example", size=(800, 600))
-        
-        # Création du wxSplitterWindow
-        splitter = wx.SplitterWindow(self)
-        
-        # Création des panneaux gauche et droit
-        panel_left = wx.Panel(splitter, style=wx.BORDER_SUNKEN)
-        panel_left.SetBackgroundColour("light blue")
-        
-        panel_right = wx.Panel(splitter, style=wx.BORDER_SUNKEN)
-        panel_right.SetBackgroundColour("light gray")
-        
-        # Diviser la fenêtre avec une partie gauche prenant 1/3 de l'écran
-        splitter.SplitVertically(panel_left, panel_right, int(800 * 1/3))
-        
-        # Permet à l'utilisateur de redimensionner librement
-        splitter.SetSashGravity(1/3)
-        
-        self.Centre()
-        self.Show()
+conn = sqlite3.connect("bdd_all.db")
+cursor = conn.cursor()
 
-if __name__ == "__main__":
-    app = wx.App(False)
-    frame = SplitterExample()
-    app.MainLoop()
+# Vérifier si la table existe
+cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users';")
+table_exists = cursor.fetchone()
+
+if table_exists:
+    print("✅ La table 'users' existe bien.")
+else:
+    print("❌ La table 'users' n'existe pas !")
+
+conn.close()
