@@ -227,52 +227,63 @@ class MainMenu(ctk.CTk):
     
     def _create_main_buttons(self):
         """Crée les boutons principaux."""
-        main_frame = ctk.CTkFrame(self.tab_menu_principal, fg_color="transparent")
-        main_frame.pack(expand=True, fill="both", padx=infos.default_pad)
+        # Frame pour les boutons principaux
+        self.buttons_frame = ctk.CTkFrame(self.tab_menu_principal, fg_color="transparent")
+        self.buttons_frame.pack(expand=True, fill="both", padx=infos.default_pad)
         
-        buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        buttons_frame.pack(expand=True, fill="both")
+        # Configuration de la grille
+        self.buttons_frame.grid_columnconfigure(0, weight=1, pad=infos.default_pad)
+        self.buttons_frame.grid_columnconfigure(1, weight=1, pad=infos.default_pad)
         
-        buttons_frame.grid_columnconfigure(0, weight=1, pad=infos.default_pad)
-        buttons_frame.grid_columnconfigure(1, weight=1, pad=infos.default_pad)
-        
+        # Création des boutons
         self.btn_add = self._create_main_button(
-            buttons_frame, "Ajouter du matériel", self.on_add, 0, 0)
+            self.buttons_frame, "Ajouter du matériel", self.on_add, 0, 0)
         self.btn_withdraw = self._create_main_button(
-            buttons_frame, "Retirer du matériel", self.on_withdraw, 0, 1)
+            self.buttons_frame, "Retirer du matériel", self.on_withdraw, 0, 1)
         self.btn_search = self._create_main_button(
-            buttons_frame, "Rechercher du matériel", self.on_search, 1, 0)
+            self.buttons_frame, "Rechercher du matériel", self.on_search, 1, 0)
         self.btn_stats = self._create_main_button(
-            buttons_frame, "Statistiques", self.on_stats, 1, 1)
+            self.buttons_frame, "Statistiques", self.on_stats, 1, 1)
     
     def _create_main_button(self, parent, text, command, row, column):
         """Crée un bouton principal standardisé."""
-        return self.create_button(
-            text, command, row, column,
+        btn = ctk.CTkButton(
+            parent,
+            text=text,
+            command=command,
             width=infos.main_button_width,
             height=infos.main_button_height,
-            font=infos.button_font
+            font=infos.button_font,
+            fg_color=infos.ctrl_color,
+            hover_color=infos.hover_color
         )
+        btn.grid(row=row, column=column, padx=infos.default_pad, 
+                pady=infos.default_pad, sticky="nsew")
+        return btn
     
     def _create_bottom_bar(self):
         """Crée la barre de boutons du bas."""
-        bottom_frame = ctk.CTkFrame(self.tab_menu_principal, fg_color="transparent")
-        bottom_frame.pack(fill="x", pady=(40, infos.default_pad))
+        self.bottom_frame = ctk.CTkFrame(self.tab_menu_principal, fg_color="transparent")
+        self.bottom_frame.pack(fill="x", pady=(40, infos.default_pad))
         
         if self.isAdmin:
-            self.btn_users = self.create_bottom_button(
-                "Gestion des utilisateurs",
-                self.on_users,
-                infos.bottom_button_width,
-                infos.button_font
+            self.btn_users = ctk.CTkButton(
+                self.bottom_frame,
+                text="Gestion des utilisateurs",
+                command=self.on_users,
+                width=infos.bottom_button_width,
+                font=infos.button_font,
+                fg_color=infos.ctrl_color,
+                hover_color=infos.hover_color
             )
+            self.btn_users.pack(side="left", padx=infos.small_pad)
         
-        self._create_utility_buttons(bottom_frame)
+        self._create_utility_buttons(self.bottom_frame)
         
-        spacer = ctk.CTkFrame(bottom_frame, fg_color="transparent")
+        spacer = ctk.CTkFrame(self.bottom_frame, fg_color="transparent")
         spacer.pack(side="left", expand=True, fill="x")
         
-        self._create_logout_button(bottom_frame)
+        self._create_logout_button(self.bottom_frame)
     
     def _create_utility_buttons(self, parent):
         """Crée les boutons utilitaires (info et paramètres)."""
@@ -329,7 +340,7 @@ class MainMenu(ctk.CTk):
             CTkButton: Le bouton créé
         """
         btn = ctk.CTkButton(
-            self.buttons_frame,
+            self.tab_menu_principal,  # Parent modifié
             text=text,
             command=command,
             width=width,
@@ -340,34 +351,6 @@ class MainMenu(ctk.CTk):
         )
         btn.grid(row=row, column=column, padx=infos.default_pad, 
                 pady=infos.default_pad, sticky="nsew")
-        return btn
-    
-    def create_bottom_button(self, text, command, width, font, hover_color=None):
-        """Crée un bouton stylisé pour la barre du bas.
-        
-        Args:
-            text (str): Texte du bouton
-            command: Fonction à exécuter lors du clic
-            width (int): Largeur du bouton
-            font: Police du texte
-            hover_color (str, optional): Couleur au survol
-            
-        Returns:
-            CTkButton: Le bouton créé
-        """
-        if hover_color is None:
-            hover_color = infos.hover_color
-            
-        btn = ctk.CTkButton(
-            self.bottom_frame,
-            text=text,
-            command=command,
-            width=width,
-            font=font,
-            fg_color=infos.ctrl_color,
-            hover_color=hover_color
-        )
-        btn.pack(side="left", padx=infos.small_pad)
         return btn
     
     def create_tab_header(self, tab, title, tab_name):
@@ -676,6 +659,9 @@ class MainMenu(ctk.CTk):
         """Gère le changement de thème."""
         is_dark = infos.toggle_theme()
         
+        # Sauvegarde du thème dans le fichier de configuration
+        infos.save_infos()
+        
         # Mise à jour des couleurs de la fenêtre principale
         self.configure(fg_color=infos.bg_color)
         self.tab_control.configure(fg_color=infos.bg_color)
@@ -813,5 +799,12 @@ class MainMenu(ctk.CTk):
         # Fermeture de l'application
         self.quit()
     
+    def _safe_destroy(self):
+        """Détruit proprement la fenêtre en annulant les tâches en attente."""
+        try:
+            self.destroy()
+        except Exception as e:
+            print(f"Erreur lors de la destruction de la fenêtre : {e}")
+
 if __name__ == "__main__":
     app = SignUpFrame()
