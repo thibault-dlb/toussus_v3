@@ -555,9 +555,117 @@ class MainMenu(ctk.CTk):
         # Création de l'en-tête
         self.create_tab_header(on_stats_tab, "Statistiques", "Statistiques")
         
+        # Frame principale avec scrollbar
+        main_frame = ctk.CTkScrollableFrame(on_stats_tab)
+        main_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        # Section: Envoi de rapport par email
+        email_frame = ctk.CTkFrame(main_frame)
+        email_frame.pack(fill="x", padx=20, pady=10)
+        
+        # Titre de la section
+        email_title = ctk.CTkLabel(
+            email_frame,
+            text="Envoi du rapport statistique par email",
+            font=infos.SUBTITLE_FONT,
+            text_color=infos.text_color
+        )
+        email_title.pack(pady=10)
+        
+        # Description
+        description = """Le rapport contiendra les diagrammes suivants :
+        1. Proportion des types de pièces
+        2. Ratio de disponibilité des pièces
+        3. Consommation de pièces par avion"""
+        
+        description_label = ctk.CTkLabel(
+            email_frame,
+            text=description,
+            justify="left",
+            wraplength=500
+        )
+        description_label.pack(pady=10)
+        
+        # Frame pour le champ email
+        input_frame = ctk.CTkFrame(email_frame, fg_color="transparent")
+        input_frame.pack(fill="x", padx=20, pady=10)
+        
+        # Label et champ pour l'email
+        email_label = ctk.CTkLabel(input_frame, text="Adresse email :")
+        email_label.pack(side="left", padx=5)
+        
+        self.email_entry = ctk.CTkEntry(input_frame, width=300)
+        self.email_entry.pack(side="left", padx=5)
+        
+        # Récupération du dernier destinataire
+        from ressources.send_mail import global_email_manager
+        last_recipient = global_email_manager.get_last_recipient()
+        if last_recipient:
+            self.email_entry.insert(0, last_recipient)
+        
+        # Frame pour les boutons
+        button_frame = ctk.CTkFrame(email_frame, fg_color="transparent")
+        button_frame.pack(fill="x", padx=20, pady=10)
+        
+        # Bouton d'envoi
+        self.send_button = ctk.CTkButton(
+            button_frame,
+            text="Envoyer le rapport",
+            command=self.send_stats_report,
+            width=200
+        )
+        self.send_button.pack(side="left", padx=5)
+        
+        # Label pour afficher la date du dernier envoi
+        from ressources.send_mail import global_email_manager
+        last_send_date = global_email_manager.get_last_send_date()
+        
+        self.last_send_label = ctk.CTkLabel(
+            button_frame,
+            text=f"Dernier envoi : {last_send_date}",
+            text_color=infos.text_color
+        )
+        self.last_send_label.pack(side="left", padx=20)
+        
         # Focus sur le Nouvel onglet
         self.tab_control.set("Statistiques")
-    
+        
+    def send_stats_report(self):
+        """Envoie le rapport statistique par email."""
+        from ressources.send_mail import envoyer_rapport_statistiques
+        
+        # Récupération de l'email
+        email = self.email_entry.get().strip()
+        
+        # Validation basique de l'email
+        if not email or "@" not in email or "." not in email:
+            messagebox.showerror("Erreur", "Veuillez entrer une adresse email valide")
+            return
+        
+        # Désactivation du bouton pendant l'envoi
+        self.send_button.configure(state="disabled", text="Envoi en cours...")
+        
+        try:
+            # Envoi du rapport
+            success = envoyer_rapport_statistiques(email)
+            
+            if success:
+                # Mise à jour de la date du dernier envoi
+                from ressources.send_mail import global_email_manager
+                last_send_date = global_email_manager.get_last_send_date()
+                self.last_send_label.configure(text=f"Dernier envoi : {last_send_date}")
+                
+                messagebox.showinfo("Succès", "Le rapport a été envoyé avec succès")
+            else:
+                messagebox.showerror("Erreur", "Échec de l'envoi du rapport")
+                
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Une erreur est survenue : {str(e)}")
+            
+        finally:
+            # Réactivation du bouton
+            self.send_button.configure(state="normal", text="Envoyer le rapport")
+
     def on_users(self):
         # Vérification des droits admin
         if not self.isAdmin:
