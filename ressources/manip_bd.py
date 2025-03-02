@@ -212,6 +212,81 @@ def ajout_plane(name: str) -> Tuple[bool, str]:
             except:
                 pass
 
+def ajouter_relations_piece_avions(piece_id: int, plane_ids: list[int]) -> Tuple[bool, str]:
+    """Ajoute des relations entre une pièce et plusieurs avions dans la table planes_magasin.
+    
+    Args:
+        piece_id: ID de la pièce
+        plane_ids: Liste des IDs des avions
+        
+    Returns:
+        Tuple[bool, str]: (succès, message)
+    """
+    conn = None
+    try:
+        # Validation des entrées
+        if not isinstance(piece_id, int) or piece_id <= 0:
+            raise ValidationError("L'ID de la pièce doit être un entier positif")
+        
+        if not isinstance(plane_ids, list) or not plane_ids:
+            raise ValidationError("La liste des IDs d'avions ne peut pas être vide")
+            
+        if len(plane_ids) > MAX_BATCH_SIZE:
+            raise ValidationError(f"Trop de relations à ajouter (maximum {MAX_BATCH_SIZE})")
+            
+        for plane_id in plane_ids:
+            if not isinstance(plane_id, int) or plane_id <= 0:
+                raise ValidationError("Tous les IDs d'avions doivent être des entiers positifs")
+        
+        conn = get_db_connection()
+        if conn is None:
+            return False, "Impossible de se connecter à la base de données"
+            
+        cursor = conn.cursor()
+        
+        # Vérification de l'existence de la pièce
+        cursor.execute("SELECT 1 FROM magasin WHERE id = ?", (piece_id,))
+        if not cursor.fetchone():
+            return False, f"La pièce avec l'ID {piece_id} n'existe pas"
+            
+        # Vérification de l'existence des avions
+        for plane_id in plane_ids:
+            cursor.execute("SELECT 1 FROM planes WHERE id = ?", (plane_id,))
+            if not cursor.fetchone():
+                return False, f"L'avion avec l'ID {plane_id} n'existe pas"
+        
+        # Ajout des relations
+        for plane_id in plane_ids:
+            try:
+                cursor.execute('''
+                    INSERT INTO planes_magasin (magasin_id, plane_id, created_at)
+                    VALUES (?, ?, CURRENT_TIMESTAMP)
+                ''', (piece_id, plane_id))
+            except sqlite3.IntegrityError:
+                conn.rollback()
+                return False, f"La relation entre la pièce {piece_id} et l'avion {plane_id} existe déjà"
+        
+        conn.commit()
+        return True, f"Relations ajoutées avec succès pour la pièce {piece_id}"
+        
+    except ValidationError as e:
+        print(f"Erreur de validation: {str(e)}")
+        return False, str(e)
+    except Exception as e:
+        print(f"Erreur inattendue lors de l'ajout des relations: {str(e)}")
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        return False, f"Erreur lors de l'ajout des relations : {str(e)}"
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) != 2:

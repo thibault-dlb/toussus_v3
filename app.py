@@ -825,15 +825,15 @@ class MainMenu(ctk.CTk):
         # Switch pour le thème
         self.theme_switch = ctk.CTkSwitch(
             appearance_frame,
-            text="Mode sombre",
+            text="Thème sombre",
             command=self.toggle_theme,
             font=infos.BUTTON_FONT,
             progress_color=infos.ctrl_color,
             button_color=infos.hover_color,
-            button_hover_color=infos.error_color,
-            text_color=infos.text_color
+            button_hover_color=infos.error_color
         )
         self.theme_switch.pack(pady=10)
+        self.theme_switch.select()  # Force le switch en position activée
         
         # État initial du switch basé sur le thème actuel
         if infos.is_dark_mode:
@@ -885,122 +885,9 @@ class MainMenu(ctk.CTk):
         self.tab_control.set("Paramètres")
     
     def toggle_theme(self):
-        """Gère le changement de thème."""
-        is_dark = infos.toggle_theme()
-        
-        # Sauvegarde du thème dans le fichier de configuration
-        infos.save_infos()
-        
-        # Mise à jour des couleurs de la fenêtre principale
-        self.configure(fg_color=infos.bg_color)
-        self.tab_control.configure(fg_color=infos.bg_color)
-        self.tab_menu_principal.configure(fg_color=infos.bg_color)
-        
-        # Mise à jour itérative des widgets au lieu de récursive
-        def update_widget_colors():
-            MAX_WIDGETS = 1000  # Limite de sécurité
-            widgets_to_update = [(self, 0)]  # (widget, profondeur)
-            widget_count = 0
-            
-            while widgets_to_update and widget_count < MAX_WIDGETS:
-                widget, depth = widgets_to_update.pop(0)
-                widget_count += 1
-                
-                # Mise à jour des couleurs selon le type de widget
-                if isinstance(widget, ctk.CTkLabel):
-                    widget.configure(text_color=infos.text_color)
-                elif isinstance(widget, ctk.CTkButton):
-                    widget.configure(
-                        fg_color=infos.ctrl_color,
-                        hover_color=infos.hover_color,
-                        text_color=infos.text_color
-                    )
-                elif isinstance(widget, ctk.CTkFrame):
-                    if widget.cget("fg_color") != "transparent":
-                        widget.configure(fg_color=infos.bg_color)
-                elif isinstance(widget, ctk.CTkSwitch):
-                    widget.configure(
-                        text_color=infos.text_color,
-                        progress_color=infos.ctrl_color,
-                        button_color=infos.hover_color,
-                        button_hover_color=infos.error_color
-                    )
-                elif isinstance(widget, ctk.CTkEntry):
-                    widget.configure(
-                        text_color=infos.text_color,
-                        fg_color=infos.bg_color,
-                        border_color=infos.ctrl_color
-                    )
-                elif isinstance(widget, ctk.CTkCheckBox):
-                    widget.configure(
-                        text_color=infos.text_color,
-                        fg_color=infos.ctrl_color,
-                        hover_color=infos.hover_color
-                    )
-                
-                # Ajout des widgets enfants à la liste avec vérification de profondeur
-                if depth < 10:  # Limite de profondeur pour éviter les boucles infinies
-                    for child in widget.winfo_children():
-                        widgets_to_update.append((child, depth + 1))
-            
-            if widget_count >= MAX_WIDGETS:
-                print("Attention : Limite de widgets atteinte lors de la mise à jour des couleurs")
-        
-        # Appel de la fonction de mise à jour
-        update_widget_colors()
-        
-        # Mise à jour des labels
-        self.label_welcome.configure(text_color=infos.text_color)
-        
-        # Mise à jour des boutons principaux avec une limite explicite
-        buttons = [
-            self.btn_new_plane, self.btn_new_material, self.btn_add,
-            self.btn_withdraw, self.btn_search, self.btn_stats
-        ]
-        for i, btn in enumerate(buttons):
-            if i >= 10:  # Limite de sécurité
-                break
-            btn.configure(
-                fg_color=infos.ctrl_color,
-                hover_color=infos.hover_color,
-                text_color=infos.text_color
-            )
-        
-        # Mise à jour des boutons du bas
-        bottom_buttons = [self.btn_settings, self.btn_logout]
-        for i, btn in enumerate(bottom_buttons):
-            if i >= 5:  # Limite de sécurité
-                break
-            btn.configure(
-                fg_color=infos.ctrl_color,
-                text_color=infos.text_color
-            )
-        
-        # Mise à jour des boutons spéciaux avec vérification d'existence
-        special_buttons = []
-        if hasattr(self, 'btn_users'):
-            special_buttons.append(self.btn_users)
-        if hasattr(self, 'btn_infos'):
-            special_buttons.append(self.btn_infos)
-            
-        for i, btn in enumerate(special_buttons):
-            if i >= 5:  # Limite de sécurité
-                break
-            btn.configure(
-                fg_color=infos.ctrl_color,
-                hover_color=infos.hover_color,
-                text_color=infos.text_color
-            )
-        
-        # Mise à jour des onglets avec limite
-        tab_count = 0
-        MAX_TABS = 20  # Limite de sécurité
-        for tab_name, tab in self.tabs.items():
-            if tab_count >= MAX_TABS:
-                break
-            tab.configure(fg_color=infos.bg_color)
-            tab_count += 1
-    
+        """Méthode désactivée pour le switch thème."""
+        pass
+
     def close_tab(self, tab_name):
         """Ferme un onglet et sauvegarde ses informations."""
         # Création d'un dictionnaire avec les informations de l'onglet
