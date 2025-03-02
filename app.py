@@ -1259,54 +1259,33 @@ class MainMenu(ctk.CTk):
             Tuple[bool, str]: (True si succès, message d'erreur sinon)
         """
         try:
-            # Récupération des valeurs des champs
-            rayonnage = self.ctrl_rayonnage.get().strip()
-            etagere = self.ctrl_etagere.get().strip()
-            description = self.ctrl_description.get().strip()
-            providers = self.ctrl_providers.get().strip()
-            pn = self.ctrl_pn.get().strip()
-            order = self.ctrl_order.get().strip()
-            quantity = int(numeric_values["Quantité"])
-            minimum = int(numeric_values["Minimum"])
-            h50 = 1 if self.ctrl_50h.get() else 0
-            h100 = 1 if self.ctrl_100h.get() else 0
-            h200 = 1 if self.ctrl_200h.get() else 0
-            providers_actf = self.ctrl_providers_actf.get().strip()
-            cost_estimate = int(numeric_values["Coût"])
-            stock_estimate_ht = int(numeric_values.get("Stock HT", 0))
-            remarks = self.ctrl_remarks.get().strip()
+            # Préparation des données
+            material_data = {
+                "rayonnage": self.ctrl_rayonnage.get().strip(),
+                "etagere": self.ctrl_etagere.get().strip(),
+                "description": self.ctrl_description.get().strip(),
+                "providers": self.ctrl_providers.get().strip(),
+                "pn": self.ctrl_pn.get().strip(),
+                "order": self.ctrl_order.get().strip(),
+                "quantity": numeric_values["Quantité"],
+                "minimum": numeric_values["Minimum"],
+                "providers_actf": self.ctrl_providers_actf.get().strip(),
+                "cost": numeric_values["Coût"],
+                "remarks": self.ctrl_remarks.get().strip(),
+                "maintenance": {
+                    "50h": self.ctrl_50h.get(),
+                    "100h": self.ctrl_100h.get(),
+                    "200h": self.ctrl_200h.get()
+                },
+                "planes": self._get_selected_planes()
+            }
             
-            # Récupération des avions sélectionnés
-            selected_plane_names = self._get_selected_planes()
-            
-            # Conversion des noms d'avions en IDs
-            plane_ids = []
-            for plane_name in selected_plane_names:
-                plane_id = db.get_plane_id_by_name(plane_name)
-                if plane_id:
-                    plane_ids.append(plane_id)
-            
-            # Utilisation de la fonction ajouter_materiel de manip_bd.py
-            success, message = manip_bd.ajouter_materiel(
-                rayonnage=rayonnage,
-                etagere=etagere,
-                description=description,
-                providers=providers,
-                pn=pn,
-                order=order,
-                quantity=quantity,
-                minimum=minimum,
-                h50=h50,
-                h100=h100,
-                h200=h200,
-                providers_actf=providers_actf,
-                cost_estimate=cost_estimate,
-                stock_estimate_ht=stock_estimate_ht,
-                remarks=remarks,
-                plane_ids=plane_ids
-            )
-            
-            return success, message
+            # Insertion dans la base de données
+            success = db.insert_material(material_data)
+            if not success:
+                return False, "Erreur lors de l'insertion dans la base de données."
+                
+            return True, "Matériel ajouté avec succès !"
             
         except Exception as e:
             return False, f"Erreur inattendue : {str(e)}"

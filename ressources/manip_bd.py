@@ -338,6 +338,7 @@ def ajouter_relations_piece_avions(
                 pass
 
 def ajouter_materiel(
+    numero: str,
     rayonnage: str,
     etagere: str,
     description: str,
@@ -358,6 +359,7 @@ def ajouter_materiel(
     """Ajoute un nouveau matériel et crée les relations avec les avions.
     
     Args:
+        numero: Numéro de la pièce
         rayonnage: Position rayonnage
         etagere: Position étagère
         description: Description de la pièce
@@ -380,14 +382,6 @@ def ajouter_materiel(
     """
     conn = None
     try:
-        # Génération automatique du numéro au format [YY][semaine]
-        import datetime as dt
-        now = dt.datetime.now()
-        year_suffix = str(now.year)[-2:]  # Deux derniers chiffres de l'année
-        week_number = now.isocalendar()[1]  # Numéro de la semaine
-        week_str = f"{week_number:02d}"  # Format sur 2 chiffres
-        numero = f"{year_suffix}{week_str}"
-        
         if (not isinstance(quantity, int) or
                 quantity < MIN_QUANTITY or
                 quantity > MAX_QUANTITY):
