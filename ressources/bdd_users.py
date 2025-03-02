@@ -1,19 +1,20 @@
+"""
+Module de gestion des utilisateurs.
+
+Ce module gère les opérations liées aux utilisateurs (création, vérification, etc.).
+"""
+
 import sqlite3
 import hashlib
 import os
 from ressources import allinfos as infos
-import customtkinter as ctk
-from tkinter import messagebox
-from PIL import Image, ImageTk
+from ressources.request_bd import db
+from typing import Tuple, Dict, Any, Optional
 
 def init_db():
     """Initialise la base de données si elle n'existe pas."""
     try:
-        db_path = os.path.join(infos.path, "bdd_all.db")
-        # Supprimer la base de données si elle existe
-        if os.path.exists(db_path):
-            os.remove(db_path)
-            
+        db_path = os.path.join(infos.PATH, "bdd_all.db")
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
@@ -56,71 +57,75 @@ def init_db():
         print(f"Erreur lors de l'initialisation de la base de données : {str(e)}")
         return False
 
-def new_user(username, password, name, firstname, email, tel, isAdmin=False):
-    """
-    Crée un nouveau compte utilisateur.
+def new_user(
+    username: str,
+    password: str,
+    name: str,
+    firstname: str,
+    email: str,
+    tel: str,
+    isAdmin: bool
+) -> Tuple[bool, str]:
+    """Crée un nouvel utilisateur dans la base de données.
     
     Args:
-        username (str): Nom d'utilisateur
-        password (str): Mot de passe (sera hashé)
-        name (str): Nom de famille
-        firstname (str): Prénom
-        email (str): Adresse email
-        tel (str): Numéro de téléphone
-        isAdmin (bool, optional): Droits administrateur. Par défaut False
-    
+        username: Nom d'utilisateur
+        password: Mot de passe en clair
+        name: Nom de famille
+        firstname: Prénom
+        email: Adresse email
+        tel: Numéro de téléphone
+        isAdmin: Droits administrateur
+        
     Returns:
-        tuple: (success, message)
+        Tuple contenant (succès, message)
     """
     try:
-        if not init_db():
-            return False, "Erreur d'initialisation de la base de données"
-            
-        conn = sqlite3.connect(os.path.join(infos.path, "bdd_all.db"))
-        cursor = conn.cursor()
-        
-        # Vérification si l'utilisateur existe déjà
-        cursor.execute("SELECT username FROM users WHERE username = ?", (username,))
-        if cursor.fetchone():
-            conn.close()
-            return False, "Nom d'utilisateur déjà existant"
-        
         # Hash du mot de passe
         password_hash = hashlib.sha256(password.encode()).hexdigest()
         
-        # Ajout du nouvel utilisateur
+        # Connexion à la base de données
+        conn = sqlite3.connect(os.path.join(infos.PATH, "bdd_all.db"))
+        cursor = conn.cursor()
+        
+        # Insertion du nouvel utilisateur
         cursor.execute('''
-            INSERT INTO users (username, password, name, firstname, email, tel, isAdmin)
+            INSERT INTO users (
+                username, password, name, firstname, email, tel, isAdmin
+            )
             VALUES (?, ?, ?, ?, ?, ?, ?)
         ''', (username, password_hash, name, firstname, email, tel, isAdmin))
         
         conn.commit()
         conn.close()
-        return True, "Compte créé avec succès"
-    
+        
+        return True, "Utilisateur créé avec succès"
+        
+    except sqlite3.IntegrityError:
+        return False, "Ce nom d'utilisateur existe déjà"
     except Exception as e:
-        return False, f"Erreur lors de la création du compte : {str(e)}"
+        return False, f"Erreur lors de la création de l'utilisateur : {str(e)}"
 
-def check_co(username, password):
-    """
-    Vérifie les identifiants de connexion.
+def check_co(username: str, password: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    """Vérifie les identifiants de connexion d'un utilisateur.
     
     Args:
-        username (str): Nom d'utilisateur
-        password (str): Mot de passe (sera hashé pour la comparaison)
-    
+        username: Nom d'utilisateur
+        password: Mot de passe en clair
+        
     Returns:
-        tuple: (success, message, user_data)
+        Tuple contenant (succès, message, données utilisateur)
     """
     try:
-        if not init_db():
-            return False, "Erreur d'initialisation de la base de données", None
-            
-        conn = sqlite3.connect(os.path.join(infos.path, "bdd_all.db"))
-        cursor = conn.cursor()
-        
+        # Hash du mot de passe
         password_hash = hashlib.sha256(password.encode()).hexdigest()
         
+        # Connexion à la base de données
+        db_path = os.path.join(infos.PATH, "bdd_all.db")
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Vérification des identifiants
         cursor.execute('''
             SELECT username, name, firstname, email, tel, isAdmin
             FROM users
@@ -131,6 +136,7 @@ def check_co(username, password):
         conn.close()
         
         if row:
+            # Création du dictionnaire de données utilisateur
             user_data = {
                 "username": row[0],
                 "name": row[1],
@@ -140,11 +146,11 @@ def check_co(username, password):
                 "isAdmin": bool(row[5])
             }
             return True, "Connexion réussie", user_data
-        
-        return False, "Nom d'utilisateur ou mot de passe incorrect", None
-        
+        else:
+            return False, "Nom d'utilisateur ou mot de passe incorrect", None
+            
     except Exception as e:
-        return False, f"Erreur lors de la vérification des identifiants : {str(e)}", None
+        return False, f"Erreur lors de la connexion : {str(e)}", None
 
 # Initialisation de la base de données au démarrage
 init_db()

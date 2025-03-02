@@ -2,7 +2,7 @@
 echo ================================
 echo 🔨 Création du nouvel exécutable avec icône...
 echo ================================
-pyinstaller --onefile --noconsole --add-data "ressources;ressources" --icon="final_icon.ico" app.py
+pyinstaller --onefile --noconsole --add-data "ressources;ressources" --icon="ressources\final_icon.ico" app.py
 
 echo ================================
 echo 🚀 Nettoyage des fichiers inutiles...

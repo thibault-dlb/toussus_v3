@@ -4,14 +4,19 @@ Module d'initialisation de la base de données.
 Ce module gère la création et l'initialisation des tables de la base de données.
 """
 
-import sqlite3
 import os
+import sqlite3
+from typing import Optional, Tuple
 
 # Chemin absolu du dossier ressources
 RESOURCES_PATH = os.path.dirname(os.path.abspath(__file__))
 
-def init_db():
-    """Initialise la base de données et crée les tables si elles n'existent pas."""
+def init_db() -> bool:
+    """Initialise la base de données et crée les tables si elles n'existent pas.
+    
+    Returns:
+        bool: True si l'initialisation est réussie, False sinon
+    """
     try:
         db_path = os.path.join(RESOURCES_PATH, "bdd_all.db")
         conn = sqlite3.connect(db_path)
@@ -44,7 +49,7 @@ def init_db():
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS planes (
                 "ID plane" INTEGER PRIMARY KEY AUTOINCREMENT,
-                "Planes" TEXT
+                "name" TEXT
             )
         ''')
         
@@ -53,7 +58,10 @@ def init_db():
             CREATE TABLE IF NOT EXISTS planes_magasin (
                 "ID stuff" INTEGER,
                 "ID plane" INTEGER,
-                PRIMARY KEY ("ID stuff", "ID plane")
+                PRIMARY KEY ("ID stuff", "ID plane"),
+                FOREIGN KEY ("ID stuff") REFERENCES magasin("ID stuff"),
+                FOREIGN KEY ("ID plane") REFERENCES planes("ID plane")
+            )
         ''')
         
         conn.commit()
@@ -65,8 +73,12 @@ def init_db():
         print(f"Erreur lors de l'initialisation de la base de données : {str(e)}")
         return False
 
-def get_db_connection():
-    """Établit et retourne une connexion à la base de données."""
+def get_db_connection() -> Optional[sqlite3.Connection]:
+    """Établit et retourne une connexion à la base de données.
+    
+    Returns:
+        Optional[sqlite3.Connection]: Connexion à la base de données ou None si erreur
+    """
     try:
         db_path = os.path.join(RESOURCES_PATH, "bdd_all.db")
         return sqlite3.connect(db_path)
@@ -74,8 +86,12 @@ def get_db_connection():
         print(f"Erreur de connexion à la base de données : {str(e)}")
         return None
 
-def drop_tables():
-    """Supprime complètement les tables planes et magasin de la base de données."""
+def drop_tables() -> bool:
+    """Supprime complètement les tables planes et magasin de la base de données.
+    
+    Returns:
+        bool: True si la suppression est réussie, False sinon
+    """
     try:
         conn = get_db_connection()
         if conn is None:

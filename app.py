@@ -1,19 +1,23 @@
-"""
-Application de gestion de matériel ATCF parts.
+"""Application de gestion de matériel ATCF parts.
 
 Ce module contient l'interface graphique principale de l'application,
 incluant la fenêtre de connexion et le menu principal.
 """
 
 import os
-from PIL import Image, ImageTk
+from datetime import datetime
+from typing import Optional, Dict, Any
+
 import customtkinter as ctk
+import hashlib
+import sqlite3
+from PIL import Image, ImageTk
 from tkinter import messagebox
 
 from ressources import allinfos as infos
 from ressources import bdd_users
-
-icon_path = os.path.join(infos.path, "main_icon.ico")
+from ressources import manip_bd
+from ressources.request_bd import db
 
 class SignUpFrame(ctk.CTk):
     """Fenêtre de connexion de l'application.
@@ -27,11 +31,11 @@ class SignUpFrame(ctk.CTk):
         super().__init__()
         
         # Configuration de base de la fenêtre
-        self.title("ATCF parts - Connexion")
+        self.title(f"{infos.NAME_MAIN} - Connexion")
         self.geometry("300x300")  # Taille fixe de 300x300 pixels
         
         # Chargement de l'icône de l'application
-        self.icon_path = os.path.join(infos.path, "main_icon.ico")
+        self.icon_path = infos.ICON_PATH
         if not os.path.exists(self.icon_path):
             print("Erreur : Le fichier de l'icône n'existe pas.")
         else:
@@ -153,10 +157,17 @@ class MainMenu(ctk.CTk):
         
         # Dictionnaire pour stocker les onglets
         self.tabs = {}
+        
+        # Chargement de l'icône de l'application
+        self.icon_path = infos.ICON_PATH
+        if not os.path.exists(self.icon_path):
+            print("Erreur : Le fichier de l'icône n'existe pas.")
+        else:
+            self.iconbitmap(self.icon_path)
     
     def _init_window_config(self):
         """Configure les paramètres de base de la fenêtre."""
-        self.title(f"{infos.name_main} - Bienvenue")
+        self.title(f"{infos.NAME_MAIN} - Bienvenue")
         self.geometry("1000x700")
         self.configure(fg_color=infos.bg_color)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -186,7 +197,7 @@ class MainMenu(ctk.CTk):
     
     def _init_resources(self):
         """Charge les ressources graphiques."""
-        settings_icon_path = os.path.join(infos.path, "logo_settings.png")
+        settings_icon_path = os.path.join(infos.PATH, "logo_settings.png")
         if os.path.exists(settings_icon_path):
             self.settings_image = ctk.CTkImage(
                 light_image=Image.open(settings_icon_path),
@@ -200,8 +211,8 @@ class MainMenu(ctk.CTk):
     def _init_tab_system(self):
         """Initialise le système d'onglets."""
         self.tab_control = ctk.CTkTabview(self, fg_color=infos.bg_color)
-        self.tab_control.pack(expand=1, fill="both", padx=infos.default_pad, 
-                            pady=infos.default_pad)
+        self.tab_control.pack(expand=1, fill="both", padx=infos.DEFAULT_PAD, 
+                            pady=infos.DEFAULT_PAD)
         
         self.tab_menu_principal = self.tab_control.add("Menu Principal")
         self.tab_menu_principal.configure(fg_color=infos.bg_color)
@@ -215,12 +226,12 @@ class MainMenu(ctk.CTk):
     def _create_welcome_section(self):
         """Crée la section de bienvenue."""
         title_frame = ctk.CTkFrame(self.tab_menu_principal, fg_color="transparent")
-        title_frame.pack(fill="x", padx=infos.default_pad, pady=(infos.default_pad, 40))
+        title_frame.pack(fill="x", padx=infos.DEFAULT_PAD, pady=(infos.DEFAULT_PAD, 40))
         
         self.label_welcome = ctk.CTkLabel(
             title_frame,
             text=f"Bienvenue {self.first_name}",
-            font=infos.title_font,
+            font=infos.TITLE_FONT,
             text_color=infos.text_color
         )
         self.label_welcome.pack()
@@ -229,21 +240,26 @@ class MainMenu(ctk.CTk):
         """Crée les boutons principaux."""
         # Frame pour les boutons principaux
         self.buttons_frame = ctk.CTkFrame(self.tab_menu_principal, fg_color="transparent")
-        self.buttons_frame.pack(expand=True, fill="both", padx=infos.default_pad)
+        self.buttons_frame.pack(expand=True, fill="both", padx=infos.DEFAULT_PAD)
         
         # Configuration de la grille
-        self.buttons_frame.grid_columnconfigure(0, weight=1, pad=infos.default_pad)
-        self.buttons_frame.grid_columnconfigure(1, weight=1, pad=infos.default_pad)
+        self.buttons_frame.grid_columnconfigure(0, weight=1, pad=infos.DEFAULT_PAD)
+        self.buttons_frame.grid_columnconfigure(1, weight=1, pad=infos.DEFAULT_PAD)
+        self.buttons_frame.grid_columnconfigure(2, weight=1, pad=infos.DEFAULT_PAD)
         
         # Création des boutons
+        self.btn_new_plane = self._create_main_button(
+            self.buttons_frame, "Nouvel avion", self.on_new_plane, 0, 0)
+        self.btn_new_material = self._create_main_button(
+            self.buttons_frame, "Nouveau matériel", self.on_new_material, 0, 1)
         self.btn_add = self._create_main_button(
-            self.buttons_frame, "Ajouter du matériel", self.on_add, 0, 0)
+            self.buttons_frame, "Ajouter du matériel", self.on_add, 0, 2)
         self.btn_withdraw = self._create_main_button(
-            self.buttons_frame, "Retirer du matériel", self.on_withdraw, 0, 1)
+            self.buttons_frame, "Retirer du matériel", self.on_withdraw, 1, 0)
         self.btn_search = self._create_main_button(
-            self.buttons_frame, "Rechercher du matériel", self.on_search, 1, 0)
+            self.buttons_frame, "Rechercher du matériel", self.on_search, 1, 1)
         self.btn_stats = self._create_main_button(
-            self.buttons_frame, "Statistiques", self.on_stats, 1, 1)
+            self.buttons_frame, "Statistiques", self.on_stats, 1, 2)
     
     def _create_main_button(self, parent, text, command, row, column):
         """Crée un bouton principal standardisé."""
@@ -251,32 +267,32 @@ class MainMenu(ctk.CTk):
             parent,
             text=text,
             command=command,
-            width=infos.main_button_width,
-            height=infos.main_button_height,
-            font=infos.button_font,
+            width=infos.MAIN_BUTTON_WIDTH,
+            height=infos.MAIN_BUTTON_HEIGHT,
+            font=infos.BUTTON_FONT,
             fg_color=infos.ctrl_color,
             hover_color=infos.hover_color
         )
-        btn.grid(row=row, column=column, padx=infos.default_pad, 
-                pady=infos.default_pad, sticky="nsew")
+        btn.grid(row=row, column=column, padx=infos.DEFAULT_PAD, 
+                pady=infos.DEFAULT_PAD, sticky="nsew")
         return btn
     
     def _create_bottom_bar(self):
         """Crée la barre de boutons du bas."""
         self.bottom_frame = ctk.CTkFrame(self.tab_menu_principal, fg_color="transparent")
-        self.bottom_frame.pack(fill="x", pady=(40, infos.default_pad))
+        self.bottom_frame.pack(fill="x", pady=(40, infos.DEFAULT_PAD))
         
         if self.isAdmin:
             self.btn_users = ctk.CTkButton(
                 self.bottom_frame,
                 text="Gestion des utilisateurs",
                 command=self.on_users,
-                width=infos.bottom_button_width,
-                font=infos.button_font,
+                width=infos.BOTTOM_BUTTON_WIDTH,
+                font=infos.BUTTON_FONT,
                 fg_color=infos.ctrl_color,
                 hover_color=infos.hover_color
             )
-            self.btn_users.pack(side="left", padx=infos.small_pad)
+            self.btn_users.pack(side="left", padx=infos.SMALL_PAD)
         
         self._create_utility_buttons(self.bottom_frame)
         
@@ -291,23 +307,23 @@ class MainMenu(ctk.CTk):
             parent,
             text="ⓘ",
             command=self.on_infos,
-            width=infos.icon_button_size,
-            height=infos.icon_button_size,
+            width=infos.ICON_BUTTON_SIZE,
+            height=infos.ICON_BUTTON_SIZE,
             fg_color=infos.ctrl_color,
             hover_color=infos.hover_color,
             font=("Segoe UI Symbol", 24)
         )
-        self.btn_infos.pack(side="left", padx=infos.small_pad)
+        self.btn_infos.pack(side="left", padx=infos.SMALL_PAD)
         
         self.btn_settings = ctk.CTkButton(
             parent,
             text="",
             image=self.settings_image,
             command=self.on_settings,
-            width=infos.icon_button_size,
-            height=infos.icon_button_size
+            width=infos.ICON_BUTTON_SIZE,
+            height=infos.ICON_BUTTON_SIZE
         )
-        self.btn_settings.pack(side="left", padx=infos.small_pad)
+        self.btn_settings.pack(side="left", padx=infos.SMALL_PAD)
     
     def _create_logout_button(self, parent):
         """Crée le bouton de déconnexion."""
@@ -315,14 +331,14 @@ class MainMenu(ctk.CTk):
             parent,
             text="⮐",
             text_color=infos.text_color,
-            width=infos.icon_button_size,
-            height=infos.icon_button_size,
+            width=infos.ICON_BUTTON_SIZE,
+            height=infos.ICON_BUTTON_SIZE,
             command=self.on_close,
             fg_color=infos.ctrl_color,
             hover_color=infos.error_color,
             font=("Segoe UI Symbol", 24)
         )
-        self.btn_logout.pack(side="right", padx=infos.small_pad)
+        self.btn_logout.pack(side="right", padx=infos.SMALL_PAD)
     
     def create_button(self, text, command, row, column, width, height, font):
         """Crée un bouton stylisé pour le menu principal.
@@ -349,8 +365,8 @@ class MainMenu(ctk.CTk):
             fg_color=infos.ctrl_color,
             hover_color=infos.hover_color
         )
-        btn.grid(row=row, column=column, padx=infos.default_pad, 
-                pady=infos.default_pad, sticky="nsew")
+        btn.grid(row=row, column=column, padx=infos.DEFAULT_PAD, 
+                pady=infos.DEFAULT_PAD, sticky="nsew")
         return btn
     
     def create_tab_header(self, tab, title, tab_name):
@@ -361,25 +377,25 @@ class MainMenu(ctk.CTk):
         # --- Création de la structure de l'en-tête ---
         # Frame principale contenant tous les éléments
         header_frame = ctk.CTkFrame(tab, fg_color="transparent")
-        header_frame.pack(fill="x", padx=infos.small_pad, pady=infos.tiny_pad)
+        header_frame.pack(fill="x", padx=infos.SMALL_PAD, pady=infos.TINY_PAD)
         
         # Organisation en trois zones : gauche (retour), centre (titre), droite (fermer)
         left_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
-        left_frame.pack(side="left", padx=infos.tiny_pad)
+        left_frame.pack(side="left", padx=infos.TINY_PAD)
         
         title_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
-        title_frame.pack(side="left", expand=True, fill="x", padx=infos.tiny_pad)
+        title_frame.pack(side="left", expand=True, fill="x", padx=infos.TINY_PAD)
         
         right_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
-        right_frame.pack(side="right", padx=infos.tiny_pad)
+        right_frame.pack(side="right", padx=infos.TINY_PAD)
         
         # --- Création des boutons de navigation ---
         # Bouton retour avec flèche
         btn_home = ctk.CTkButton(
             left_frame,
             text="↩",
-            width=int(infos.small_button_width * 1.4),  # 40% plus large
-            height=int(infos.small_button_width * 1.4),  # 40% plus haut
+            width=int(infos.SMALL_BUTTON_WIDTH * 1.4),  # 40% plus large
+            height=int(infos.SMALL_BUTTON_WIDTH * 1.4),  # 40% plus haut
             command=lambda: self.tab_control.set("Menu Principal"),
             fg_color=infos.ctrl_color,
             hover_color=infos.hover_color,
@@ -391,7 +407,7 @@ class MainMenu(ctk.CTk):
         label_title = ctk.CTkLabel(
             title_frame,
             text=title,
-            font=infos.subtitle_font,
+            font=infos.SUBTITLE_FONT,
             text_color=infos.text_color
         )
         label_title.pack(expand=True)
@@ -400,8 +416,8 @@ class MainMenu(ctk.CTk):
         btn_close = ctk.CTkButton(
             right_frame,
             text="✕",
-            width=int(infos.small_button_width * 1.4),
-            height=int(infos.small_button_width * 1.4),
+            width=int(infos.SMALL_BUTTON_WIDTH * 1.4),
+            height=int(infos.SMALL_BUTTON_WIDTH * 1.4),
             command=lambda: self.close_tab(tab_name),
             fg_color=infos.ctrl_color,
             hover_color=infos.hover_color,
@@ -411,7 +427,7 @@ class MainMenu(ctk.CTk):
         
         # Ligne de séparation sous l'en-tête
         separator = ctk.CTkFrame(tab, height=2, fg_color=infos.separator_color)
-        separator.pack(fill="x", padx=infos.small_pad, pady=(0, infos.small_pad))
+        separator.pack(fill="x", padx=infos.SMALL_PAD, pady=(0, infos.SMALL_PAD))
 
     def on_add(self):
         # Nouvel onglet ou focus sur l'ancien
@@ -441,8 +457,14 @@ class MainMenu(ctk.CTk):
         self.label_quantity.pack(pady=10)
         self.ctrl_quantity.pack(pady=10)
         
+        # Bind de la touche Entrée
+        self.ctrl_materiel.bind("<Return>", lambda e: self.ctrl_quantity.focus())
+        self.ctrl_quantity.bind("<Return>", lambda e: self.validate_add())
+        
         # Focus sur le Nouvel onglet
         self.tab_control.set("Ajouter du matériel")
+        # Focus sur le premier champ
+        self.ctrl_materiel.focus()
     
     def on_withdraw(self):
         # Nouvel onglet ou focus sur l'ancien
@@ -472,8 +494,14 @@ class MainMenu(ctk.CTk):
         self.label_quantity.pack(pady=10)
         self.ctrl_quantity.pack(pady=10)
         
+        # Bind de la touche Entrée
+        self.ctrl_materiel.bind("<Return>", lambda e: self.ctrl_quantity.focus())
+        self.ctrl_quantity.bind("<Return>", lambda e: self.validate_withdraw())
+        
         # Focus sur le Nouvel onglet
         self.tab_control.set("Retirer du matériel")
+        # Focus sur le premier champ
+        self.ctrl_materiel.focus()
     
     def on_search(self):
         # Nouvel onglet ou focus sur l'ancien
@@ -553,8 +581,18 @@ class MainMenu(ctk.CTk):
         self.ctrl_isAdmin.pack(pady=10)
         self.btn_valider.pack(pady=10)
         
+        # Bind de la touche Entrée
+        self.ctrl_username.bind("<Return>", lambda e: self.ctrl_password.focus())
+        self.ctrl_password.bind("<Return>", lambda e: self.ctrl_firstname.focus())
+        self.ctrl_firstname.bind("<Return>", lambda e: self.ctrl_lastname.focus())
+        self.ctrl_lastname.bind("<Return>", lambda e: self.ctrl_email.focus())
+        self.ctrl_email.bind("<Return>", lambda e: self.ctrl_phone.focus())
+        self.ctrl_phone.bind("<Return>", lambda e: self.create_account())
+        
         # Focus sur le Nouvel onglet
         self.tab_control.set("Gestion des utilisateurs")
+        # Focus sur le premier champ
+        self.ctrl_username.focus()
     
     def create_account(self):
         username = self.ctrl_username.get()
@@ -624,11 +662,11 @@ class MainMenu(ctk.CTk):
         appearance_frame = ctk.CTkFrame(content_frame)
         appearance_frame.pack(fill="x", padx=20, pady=10)
         
-        # Titre de la section
+        # Titre de la section Apparence
         appearance_title = ctk.CTkLabel(
             appearance_frame,
             text="Apparence",
-            font=infos.subtitle_font,
+            font=infos.SUBTITLE_FONT,
             text_color=infos.text_color
         )
         appearance_title.pack(pady=10)
@@ -638,7 +676,7 @@ class MainMenu(ctk.CTk):
             appearance_frame,
             text="Mode sombre",
             command=self.toggle_theme,
-            font=infos.button_font,
+            font=infos.BUTTON_FONT,
             progress_color=infos.ctrl_color,
             button_color=infos.hover_color,
             button_hover_color=infos.error_color,
@@ -651,6 +689,46 @@ class MainMenu(ctk.CTk):
             self.theme_switch.select()
         else:
             self.theme_switch.deselect()
+        
+        # Section Sécurité
+        security_frame = ctk.CTkFrame(content_frame)
+        security_frame.pack(fill="x", padx=20, pady=10)
+        
+        # Titre de la section Sécurité
+        security_title = ctk.CTkLabel(
+            security_frame,
+            text="Sécurité",
+            font=infos.SUBTITLE_FONT,
+            text_color=infos.text_color
+        )
+        security_title.pack(pady=10)
+        
+        # Champs pour le changement de mot de passe
+        self.old_password_label = ctk.CTkLabel(security_frame, text="Ancien mot de passe")
+        self.old_password_entry = ctk.CTkEntry(security_frame, show="*")
+        self.new_password_label = ctk.CTkLabel(security_frame, text="Nouveau mot de passe")
+        self.new_password_entry = ctk.CTkEntry(security_frame, show="*")
+        self.confirm_password_label = ctk.CTkLabel(security_frame, text="Confirmer le mot de passe")
+        self.confirm_password_entry = ctk.CTkEntry(security_frame, show="*")
+        self.change_password_button = ctk.CTkButton(
+            security_frame,
+            text="Changer le mot de passe",
+            command=self.change_password
+        )
+        
+        # Placement des widgets de mot de passe
+        self.old_password_label.pack(pady=(10, 0))
+        self.old_password_entry.pack(pady=(0, 10))
+        self.new_password_label.pack(pady=(10, 0))
+        self.new_password_entry.pack(pady=(0, 10))
+        self.confirm_password_label.pack(pady=(10, 0))
+        self.confirm_password_entry.pack(pady=(0, 10))
+        self.change_password_button.pack(pady=10)
+        
+        # Bind de la touche Entrée pour les champs de mot de passe
+        self.old_password_entry.bind("<Return>", lambda e: self.new_password_entry.focus())
+        self.new_password_entry.bind("<Return>", lambda e: self.confirm_password_entry.focus())
+        self.confirm_password_entry.bind("<Return>", lambda e: self.change_password())
         
         # Focus sur le Nouvel onglet
         self.tab_control.set("Paramètres")
@@ -709,7 +787,7 @@ class MainMenu(ctk.CTk):
         self.label_welcome.configure(text_color=infos.text_color)
         
         # Mise à jour des boutons principaux
-        for btn in [self.btn_add, self.btn_withdraw, self.btn_search, self.btn_stats]:
+        for btn in [self.btn_new_plane, self.btn_new_material, self.btn_add, self.btn_withdraw, self.btn_search, self.btn_stats]:
             btn.configure(
                 fg_color=infos.ctrl_color,
                 hover_color=infos.hover_color,
@@ -805,6 +883,372 @@ class MainMenu(ctk.CTk):
             self.destroy()
         except Exception as e:
             print(f"Erreur lors de la destruction de la fenêtre : {e}")
+
+    def on_new_plane(self):
+        """Gère l'ouverture de l'onglet Nouvel avion."""
+        # Nouvel onglet ou focus sur l'ancien
+        if "Nouvel avion" in self.tabs:
+            self.tab_control.set("Nouvel avion")
+            return
+            
+        new_plane_tab = self.tab_control.add("Nouvel avion")
+        self.tabs["Nouvel avion"] = new_plane_tab
+        
+        # Création de l'en-tête
+        self.create_tab_header(new_plane_tab, "Nouvel avion", "Nouvel avion")
+        
+        # Frame pour le contenu
+        content_frame = ctk.CTkFrame(new_plane_tab, fg_color="transparent")
+        content_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        # Création des widgets
+        self.label_plane = ctk.CTkLabel(content_frame, text="Nom de l'avion")
+        self.ctrl_plane = ctk.CTkEntry(content_frame)
+        self.btn_validate_plane = ctk.CTkButton(content_frame, text="Valider", command=self.validate_new_plane)
+        
+        # Ajout des widgets
+        self.label_plane.pack(pady=10)
+        self.ctrl_plane.pack(pady=10)
+        self.btn_validate_plane.pack(pady=10)
+        
+        # Bind de la touche Entrée
+        self.ctrl_plane.bind("<Return>", lambda e: self.validate_new_plane())
+        
+        # Focus sur le Nouvel onglet
+        self.tab_control.set("Nouvel avion")
+        # Focus sur le champ de saisie
+        self.ctrl_plane.focus()
+    
+    def validate_new_plane(self):
+        """Valide l'ajout d'un nouvel avion."""
+        plane_name = self.ctrl_plane.get()
+        if not plane_name:
+            messagebox.showerror("Erreur", "Veuillez entrer un nom d'avion")
+            return
+            
+        success, message = manip_bd.ajout_plane(plane_name)
+        if success:
+            messagebox.showinfo("Succès", f"L'avion '{plane_name}' a été ajouté avec succès")
+            self.ctrl_plane.delete(0, "end")  # Efface le champ
+        else:
+            messagebox.showerror("Erreur", message)
+    
+    def on_new_material(self):
+        """Gère l'ouverture de l'onglet Nouveau matériel."""
+        # Nouvel onglet ou focus sur l'ancien
+        if "Nouveau matériel" in self.tabs:
+            self.tab_control.set("Nouveau matériel")
+            return
+            
+        new_material_tab = self.tab_control.add("Nouveau matériel")
+        self.tabs["Nouveau matériel"] = new_material_tab
+        
+        # Création de l'en-tête
+        self.create_tab_header(new_material_tab, "Nouveau matériel", "Nouveau matériel")
+        
+        # Frame principale pour le contenu
+        main_frame = ctk.CTkFrame(new_material_tab, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        # Création des widgets avec une largeur fixe
+        entry_width = 200  # Largeur fixe pour tous les champs de saisie
+        
+        # --- Section 1 : Informations de base (4 colonnes) ---
+        section1_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        section1_frame.pack(fill="x", pady=(0, 10))
+        
+        for i in range(8):  # 4 colonnes * 2 (pour les espacements)
+            section1_frame.grid_columnconfigure(i, weight=1)
+            
+        # Widgets de la section 1
+        self.ctrl_rayonnage = ctk.CTkEntry(section1_frame, width=entry_width)
+        self.ctrl_etagere = ctk.CTkEntry(section1_frame, width=entry_width)
+        self.ctrl_description = ctk.CTkEntry(section1_frame, width=entry_width)
+        self.ctrl_providers = ctk.CTkEntry(section1_frame, width=entry_width)
+        self.ctrl_pn = ctk.CTkEntry(section1_frame, width=entry_width)
+        self.ctrl_order = ctk.CTkEntry(section1_frame, width=entry_width)
+        self.ctrl_quantity = ctk.CTkEntry(section1_frame, width=entry_width)
+        self.ctrl_minimum = ctk.CTkEntry(section1_frame, width=entry_width)
+        
+        # Liste des widgets de la section 1
+        section1_widgets = [
+            ("Rayonnage", self.ctrl_rayonnage),
+            ("Étagère", self.ctrl_etagere),
+            ("Description", self.ctrl_description),
+            ("Fournisseurs", self.ctrl_providers),
+            ("PN", self.ctrl_pn),
+            ("Order", self.ctrl_order),
+            ("Quantité", self.ctrl_quantity),
+            ("Minimum", self.ctrl_minimum)
+        ]
+        
+        # Placement des widgets de la section 1
+        for idx, (label_text, ctrl) in enumerate(section1_widgets):
+            col = (idx % 4) * 2
+            row = idx // 4 * 2
+            
+            label = ctk.CTkLabel(section1_frame, text=label_text, anchor="center")
+            label.grid(row=row, column=col, columnspan=2, padx=10, pady=(10,0))
+            ctrl.grid(row=row+1, column=col, columnspan=2, padx=10, pady=(0,10))
+            ctrl.configure(justify="center")
+        
+        # Séparateur entre section 1 et 2
+        separator1 = ctk.CTkFrame(main_frame, height=1, fg_color=infos.separator_color)
+        separator1.pack(fill="x", padx=infos.SMALL_PAD, pady=10)
+        
+        # --- Section 2 : Options et maintenance (3 colonnes) ---
+        section2_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        section2_frame.pack(fill="x", pady=(0, 10))
+        
+        for i in range(6):  # 3 colonnes * 2
+            section2_frame.grid_columnconfigure(i, weight=1)
+            
+        # Widgets de la section 2
+        self.ctrl_50h = ctk.CTkCheckBox(section2_frame, text="")
+        self.ctrl_100h = ctk.CTkCheckBox(section2_frame, text="")
+        self.ctrl_200h = ctk.CTkCheckBox(section2_frame, text="")
+        self.ctrl_providers_actf = ctk.CTkEntry(section2_frame, width=entry_width)
+        self.ctrl_cost = ctk.CTkEntry(section2_frame, width=entry_width)
+        self.ctrl_remarks = ctk.CTkEntry(section2_frame, width=entry_width)
+        
+        # Liste des widgets de la section 2
+        section2_widgets = [
+            ("50H", self.ctrl_50h),
+            ("100H", self.ctrl_100h),
+            ("200H ou annuelle", self.ctrl_200h),
+            ("Fournisseurs ACTF", self.ctrl_providers_actf),
+            ("Estimation coût individuel", self.ctrl_cost),
+            ("Remarques", self.ctrl_remarks)
+        ]
+        
+        # Placement des widgets de la section 2
+        for idx, (label_text, ctrl) in enumerate(section2_widgets):
+            col = (idx % 3) * 2
+            row = idx // 3 * 2
+            
+            label = ctk.CTkLabel(section2_frame, text=label_text, anchor="center")
+            label.grid(row=row, column=col, columnspan=2, padx=10, pady=(10,0))
+            ctrl.grid(row=row+1, column=col, columnspan=2, padx=10, pady=(0,10))
+            if isinstance(ctrl, ctk.CTkEntry):
+                ctrl.configure(justify="center")
+        
+        # Séparateur entre section 2 et 3
+        separator2 = ctk.CTkFrame(main_frame, height=1, fg_color=infos.separator_color)
+        separator2.pack(fill="x", padx=infos.SMALL_PAD, pady=10)
+        
+        # --- Section 3 : Avions associés (5 colonnes) ---
+        section3_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        section3_frame.pack(fill="x", pady=(0, 20))
+        
+        for i in range(10):  # 5 colonnes * 2
+            section3_frame.grid_columnconfigure(i, weight=1)
+        
+        # Récupération de la liste des avions
+        try:
+            planes = db.get_all_planes()
+            self.plane_checkboxes = {}
+            
+            # Création et placement des checkboxes pour les avions
+            for idx, plane in enumerate(planes):
+                col = (idx % 5) * 2
+                row = idx // 5 * 2
+                
+                self.plane_checkboxes[plane[0]] = ctk.CTkCheckBox(section3_frame, text="")
+                
+                label = ctk.CTkLabel(section3_frame, text=plane[0], anchor="center")
+                label.grid(row=row, column=col, columnspan=2, padx=10, pady=(10,0))
+                self.plane_checkboxes[plane[0]].grid(row=row+1, column=col, columnspan=2, padx=10, pady=(0,10))
+                
+        except Exception as e:
+            print(f"Erreur lors de la récupération des avions : {str(e)}")
+            self.plane_checkboxes = {}
+        
+        # Bouton de validation
+        button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        button_frame.pack(fill="x", pady=(0, 10))
+        
+        self.btn_validate_material = ctk.CTkButton(
+            button_frame,
+            text="Valider",
+            command=self.validate_new_material,
+            width=200
+        )
+        self.btn_validate_material.pack()
+        
+        # Configuration de la navigation avec la touche Entrée
+        all_widgets = section1_widgets + section2_widgets
+        for i in range(len(all_widgets)-1):
+            if isinstance(all_widgets[i][1], ctk.CTkEntry):
+                all_widgets[i][1].bind("<Return>", 
+                    lambda e, next_widget=all_widgets[i+1][1]: next_widget.focus())
+        
+        if all_widgets:
+            all_widgets[-1][1].bind("<Return>", lambda e: self.validate_new_material())
+        
+        # Focus sur le premier champ
+        self.ctrl_rayonnage.focus()
+        
+        # Focus sur le Nouvel onglet (déplacé à la fin)
+        self.tab_control.set("Nouveau matériel")
+    
+    def validate_new_material(self):
+        """Valide l'ajout d'un nouveau matériel."""
+        # Génération automatique du numéro au format [YY][WW]
+        current_date = datetime.now()
+        year_last_two_digits = str(current_date.year)[-2:]
+        week_number = current_date.strftime("%V")
+        auto_numero = f"{year_last_two_digits}{week_number}"
+
+        # Récupération des valeurs
+        values = {
+            "Numero": auto_numero,
+            "Rayonnage": self.ctrl_rayonnage.get(),
+            "Etagere": self.ctrl_etagere.get(),
+            "Description": self.ctrl_description.get(),
+            "Providers": self.ctrl_providers.get(),
+            "PN": self.ctrl_pn.get(),
+            "Order": self.ctrl_order.get(),
+            "Quantity": self.ctrl_quantity.get(),
+            "Minimum": self.ctrl_minimum.get(),
+            "50H": 1 if self.ctrl_50h.get() == 1 else 0,
+            "100H": 1 if self.ctrl_100h.get() == 1 else 0,
+            "200H_ou_annuelle": 1 if self.ctrl_200h.get() == 1 else 0,
+            "Providers_ACTF": self.ctrl_providers_actf.get(),
+            "Cost_Estimate": self.ctrl_cost.get(),
+            "Remarks": self.ctrl_remarks.get()
+        }
+
+        # Ajout des valeurs des cases à cocher des avions
+        for plane_name, checkbox in self.plane_checkboxes.items():
+            values[f"Plane_{plane_name}"] = 1 if checkbox.get() == 1 else 0
+        
+        # Vérification qu'au moins un champ est rempli
+        if not any(values.values()):
+            messagebox.showerror(
+                "Erreur",
+                "Veuillez remplir au moins un champ"
+            )
+            return
+        
+        # Conversion des valeurs numériques
+        numeric_fields = ["Quantity", "Minimum", "Cost_Estimate"]
+        
+        for field in numeric_fields:
+            if values[field]:
+                try:
+                    values[field] = int(values[field])
+                except ValueError:
+                    messagebox.showerror(
+                        "Erreur",
+                        f"Le champ {field} doit être un nombre entier"
+                    )
+                    return
+            else:
+                values[field] = 0  # Valeur par défaut si vide
+        
+        # Calcul automatique de Stock_Estimate_HT
+        values["Stock_Estimate_HT"] = values["Quantity"] * values["Cost_Estimate"]
+        
+        try:
+            # Connexion à la base de données
+            conn = sqlite3.connect(os.path.join(infos.PATH, "bdd_all.db"))
+            cursor = conn.cursor()
+            
+            # Insertion dans la base de données
+            cursor.execute('''
+                INSERT INTO magasin (
+                    "Numero", "Rayonnage", "Etagere", "Description", "Providers",
+                    "PN", "Order", "Quantity", "Minimum", "50H",
+                    "100H", "200H_ou_annuelle", "Providers_ACTF",
+                    "Cost_Estimate", "Stock_Estimate_HT", "Remarks"
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                values["Numero"], values["Rayonnage"], values["Etagere"],
+                values["Description"], values["Providers"], values["PN"],
+                values["Order"], values["Quantity"], values["Minimum"],
+                values["50H"], values["100H"], values["200H_ou_annuelle"],
+                values["Providers_ACTF"], values["Cost_Estimate"],
+                values["Stock_Estimate_HT"], values["Remarks"]
+            ))
+            
+            conn.commit()
+            conn.close()
+            
+            # Message de succès
+            messagebox.showinfo(
+                "Succès",
+                f"Le matériel a été ajouté avec succès"
+            )
+            
+            # Réinitialisation des champs
+            for ctrl in [
+                self.ctrl_rayonnage, self.ctrl_etagere, self.ctrl_description,
+                self.ctrl_providers, self.ctrl_pn, self.ctrl_order,
+                self.ctrl_quantity, self.ctrl_minimum, self.ctrl_50h,
+                self.ctrl_100h, self.ctrl_200h, self.ctrl_providers_actf,
+                self.ctrl_cost, self.ctrl_remarks
+            ]:
+                if hasattr(ctrl, 'delete'):
+                    ctrl.delete(0, "end")
+            
+            # Focus sur le premier champ
+            self.ctrl_rayonnage.focus()
+            
+        except Exception as e:
+            messagebox.showerror(
+                "Erreur",
+                f"Erreur lors de l'ajout du matériel : {str(e)}"
+            )
+
+    def change_password(self):
+        """Gère le changement de mot de passe."""
+        old_password = self.old_password_entry.get()
+        new_password = self.new_password_entry.get()
+        confirm_password = self.confirm_password_entry.get()
+        
+        # Vérification que tous les champs sont remplis
+        if not all([old_password, new_password, confirm_password]):
+            messagebox.showerror("Erreur", "Veuillez remplir tous les champs")
+            return
+        
+        # Vérification que les deux nouveaux mots de passe correspondent
+        if new_password != confirm_password:
+            messagebox.showerror("Erreur", "Les nouveaux mots de passe ne correspondent pas")
+            return
+        
+        # Vérification de l'ancien mot de passe
+        success, message, _ = bdd_users.check_co(self.username, old_password)
+        if not success:
+            messagebox.showerror("Erreur", "Ancien mot de passe incorrect")
+            return
+        
+        # Mise à jour du mot de passe dans la base de données
+        try:
+            conn = sqlite3.connect(os.path.join(infos.PATH, "bdd_all.db"))
+            cursor = conn.cursor()
+            
+            # Hash du nouveau mot de passe
+            new_password_hash = hashlib.sha256(new_password.encode()).hexdigest()
+            
+            # Mise à jour du mot de passe
+            cursor.execute("""
+                UPDATE users 
+                SET password = ? 
+                WHERE username = ?
+            """, (new_password_hash, self.username))
+            
+            conn.commit()
+            conn.close()
+            
+            # Réinitialisation des champs
+            self.old_password_entry.delete(0, "end")
+            self.new_password_entry.delete(0, "end")
+            self.confirm_password_entry.delete(0, "end")
+            
+            messagebox.showinfo("Succès", "Mot de passe modifié avec succès")
+            
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Erreur lors de la modification du mot de passe : {str(e)}")
 
 if __name__ == "__main__":
     app = SignUpFrame()
