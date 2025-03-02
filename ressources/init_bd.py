@@ -20,6 +20,7 @@ def init_db():
         # Création de la table magasin
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS magasin (
+                "ID stuff" INTEGER PRIMARY KEY AUTOINCREMENT,
                 "Numero" TEXT,
                 "Rayonnage" TEXT,
                 "Etagere" TEXT,
@@ -27,11 +28,6 @@ def init_db():
                 "Providers" TEXT,
                 "PN" TEXT,
                 "Order" TEXT,
-                "Aquila" TEXT,
-                "PA28-181" TEXT,
-                "DA40" TEXT,
-                "Cirrus SR20" TEXT,
-                "Cirrus SR22" TEXT,
                 "Quantity" INTEGER,
                 "Minimum" INTEGER,
                 "50H" INTEGER,
@@ -42,6 +38,22 @@ def init_db():
                 "Stock_Estimate_HT" INTEGER,
                 "Remarks" TEXT
             )
+        ''')
+        
+        # Création de la table planes
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS planes (
+                "ID plane" INTEGER PRIMARY KEY AUTOINCREMENT,
+                "Planes" TEXT
+            )
+        ''')
+        
+        # Création de la table de relations entre planes et magasin
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS planes_magasin (
+                "ID stuff" INTEGER,
+                "ID plane" INTEGER,
+                PRIMARY KEY ("ID stuff", "ID plane")
         ''')
         
         conn.commit()
@@ -61,6 +73,30 @@ def get_db_connection():
     except Exception as e:
         print(f"Erreur de connexion à la base de données : {str(e)}")
         return None
+
+def drop_tables():
+    """Supprime complètement les tables planes et magasin de la base de données."""
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            print("Impossible de se connecter à la base de données")
+            return False
+            
+        cursor = conn.cursor()
+        
+        # Suppression complète des tables
+        cursor.execute('DROP TABLE IF EXISTS planes')
+        cursor.execute('DROP TABLE IF EXISTS magasin')
+        
+        conn.commit()
+        conn.close()
+        print("Tables supprimées avec succès")
+        return True
+        
+    except Exception as e:
+        print(f"Erreur lors de la suppression des tables : {str(e)}")
+        return False
+
 
 if __name__ == "__main__":
     init_db()
