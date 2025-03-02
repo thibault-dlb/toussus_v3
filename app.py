@@ -6,7 +6,7 @@ incluant la fenêtre de connexion et le menu principal.
 
 import os
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple, List
 
 import customtkinter as ctk
 import hashlib
@@ -143,6 +143,10 @@ class MainMenu(ctk.CTk):
 
     def __init__(self, username, first_name, isAdmin):
         """Initialise le menu principal."""
+        assert isinstance(username, str), "Le nom d'utilisateur doit être une chaîne"
+        assert isinstance(first_name, str), "Le prénom doit être une chaîne"
+        assert isinstance(isAdmin, bool), "isAdmin doit être un booléen"
+        
         super().__init__()
         
         # Configuration de base
@@ -163,21 +167,42 @@ class MainMenu(ctk.CTk):
         if not os.path.exists(self.icon_path):
             print("Erreur : Le fichier de l'icône n'existe pas.")
         else:
-            self.iconbitmap(self.icon_path)
+            try:
+                self.iconbitmap(self.icon_path)
+            except Exception as e:
+                print(f"Erreur lors du chargement de l'icône : {e}")
     
     def _init_window_config(self):
         """Configure les paramètres de base de la fenêtre."""
-        self.title(f"{infos.NAME_MAIN} - Bienvenue")
-        self.geometry("1000x700")
-        self.configure(fg_color=infos.bg_color)
-        self.protocol("WM_DELETE_WINDOW", self.on_close)
+        try:
+            self.title(f"{infos.NAME_MAIN} - Bienvenue")
+            self.geometry("1000x700")
+            self.configure(fg_color=infos.bg_color)
+            self.protocol("WM_DELETE_WINDOW", self.on_close)
+        except Exception as e:
+            print(f"Erreur lors de la configuration de la fenêtre : {e}")
+            raise
     
-    def _init_user_info(self, username, first_name, isAdmin):
-        """Initialise les informations utilisateur."""
+    def _init_user_info(self, username: str, first_name: str, isAdmin: bool) -> None:
+        """Initialise les informations utilisateur.
+        
+        Args:
+            username: Nom d'utilisateur
+            first_name: Prénom de l'utilisateur
+            isAdmin: Droits d'administration
+        """
+        assert len(username) > 0, "Le nom d'utilisateur ne peut pas être vide"
+        assert len(first_name) > 0, "Le prénom ne peut pas être vide"
+        
         self.username = username
         self.first_name = first_name
         self.isAdmin = isAdmin
         self.closed_tabs_history = []
+        
+        # Vérification post-initialisation
+        assert hasattr(self, 'username'), "username non initialisé"
+        assert hasattr(self, 'first_name'), "first_name non initialisé"
+        assert hasattr(self, 'isAdmin'), "isAdmin non initialisé"
     
     def _init_keyboard_shortcuts(self):
         """Configure les raccourcis clavier."""
@@ -534,6 +559,11 @@ class MainMenu(ctk.CTk):
         self.tab_control.set("Statistiques")
     
     def on_users(self):
+        # Vérification des droits admin
+        if not self.isAdmin:
+            messagebox.showerror("Erreur", "Vous n'avez pas les droits administrateur")
+            return
+            
         # Nouvel onglet ou focus sur l'ancien
         if "Gestion des utilisateurs" in self.tabs:
             self.tab_control.set("Gestion des utilisateurs")
@@ -545,39 +575,52 @@ class MainMenu(ctk.CTk):
         # Création de l'en-tête
         self.create_tab_header(on_users_tab, "Gestion des utilisateurs", "Gestion des utilisateurs")
         
-        # Frame pour le contenu
-        content_frame = ctk.CTkFrame(on_users_tab, fg_color="transparent")
-        content_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        # Frame principale avec scrollbar
+        main_frame = ctk.CTkScrollableFrame(on_users_tab)
+        main_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        # Section: Création d'utilisateur
+        creation_frame = ctk.CTkFrame(main_frame)
+        creation_frame.pack(fill="x", padx=20, pady=10)
+        
+        # Titre de la section
+        creation_title = ctk.CTkLabel(
+            creation_frame,
+            text="Créer un nouvel utilisateur",
+            font=infos.SUBTITLE_FONT,
+            text_color=infos.text_color
+        )
+        creation_title.pack(pady=10)
         
         # Création des widgets
-        self.label_name = ctk.CTkLabel(content_frame, text="Nom d'utilisateur")
-        self.ctrl_username = ctk.CTkEntry(content_frame)
-        self.label_password = ctk.CTkLabel(content_frame, text="Mot de passe")
-        self.ctrl_password = ctk.CTkEntry(content_frame, show="*")
-        self.label_firstname = ctk.CTkLabel(content_frame, text="Prénom")
-        self.ctrl_firstname = ctk.CTkEntry(content_frame)
-        self.label_lastname = ctk.CTkLabel(content_frame, text="Nom")
-        self.ctrl_lastname = ctk.CTkEntry(content_frame)
-        self.label_email = ctk.CTkLabel(content_frame, text="Email")
-        self.ctrl_email = ctk.CTkEntry(content_frame)
-        self.label_phone = ctk.CTkLabel(content_frame, text="Téléphone")
-        self.ctrl_phone = ctk.CTkEntry(content_frame)
-        self.ctrl_isAdmin = ctk.CTkCheckBox(content_frame, text="Peux gérer les utilisateurs")
-        self.btn_valider = ctk.CTkButton(content_frame, text="Valider", command=self.create_account)
+        self.label_name = ctk.CTkLabel(creation_frame, text="Nom d'utilisateur")
+        self.ctrl_username = ctk.CTkEntry(creation_frame)
+        self.label_password = ctk.CTkLabel(creation_frame, text="Mot de passe")
+        self.ctrl_password = ctk.CTkEntry(creation_frame, show="*")
+        self.label_firstname = ctk.CTkLabel(creation_frame, text="Prénom")
+        self.ctrl_firstname = ctk.CTkEntry(creation_frame)
+        self.label_lastname = ctk.CTkLabel(creation_frame, text="Nom")
+        self.ctrl_lastname = ctk.CTkEntry(creation_frame)
+        self.label_email = ctk.CTkLabel(creation_frame, text="Email")
+        self.ctrl_email = ctk.CTkEntry(creation_frame)
+        self.label_phone = ctk.CTkLabel(creation_frame, text="Téléphone")
+        self.ctrl_phone = ctk.CTkEntry(creation_frame)
+        self.ctrl_isAdmin = ctk.CTkCheckBox(creation_frame, text="Droits administrateur")
+        self.btn_valider = ctk.CTkButton(creation_frame, text="Créer l'utilisateur", command=self.create_account)
         
         # Ajout des widgets
-        self.label_name.pack(pady=10)
-        self.ctrl_username.pack(pady=10)
-        self.label_password.pack(pady=10)
-        self.ctrl_password.pack(pady=10)
-        self.label_firstname.pack(pady=10)
-        self.ctrl_firstname.pack(pady=10)
-        self.label_lastname.pack(pady=10)
-        self.ctrl_lastname.pack(pady=10)
-        self.label_email.pack(pady=10)
-        self.ctrl_email.pack(pady=10)
-        self.label_phone.pack(pady=10)
-        self.ctrl_phone.pack(pady=10)
+        self.label_name.pack(pady=(10,0))
+        self.ctrl_username.pack(pady=(0,10))
+        self.label_password.pack(pady=(10,0))
+        self.ctrl_password.pack(pady=(0,10))
+        self.label_firstname.pack(pady=(10,0))
+        self.ctrl_firstname.pack(pady=(0,10))
+        self.label_lastname.pack(pady=(10,0))
+        self.ctrl_lastname.pack(pady=(0,10))
+        self.label_email.pack(pady=(10,0))
+        self.ctrl_email.pack(pady=(0,10))
+        self.label_phone.pack(pady=(10,0))
+        self.ctrl_phone.pack(pady=(0,10))
         self.ctrl_isAdmin.pack(pady=10)
         self.btn_valider.pack(pady=10)
         
@@ -745,49 +788,70 @@ class MainMenu(ctk.CTk):
         self.tab_control.configure(fg_color=infos.bg_color)
         self.tab_menu_principal.configure(fg_color=infos.bg_color)
         
-        # Fonction récursive pour mettre à jour tous les widgets
-        def update_widget_colors(widget):
-            # Mise à jour des couleurs selon le type de widget
-            if isinstance(widget, ctk.CTkLabel):
-                widget.configure(text_color=infos.text_color)
-            elif isinstance(widget, ctk.CTkButton):
-                widget.configure(
-                    fg_color=infos.ctrl_color,
-                    hover_color=infos.hover_color,
-                    text_color=infos.text_color
-                )
-            elif isinstance(widget, ctk.CTkFrame):
-                if widget.cget("fg_color") != "transparent":
-                    widget.configure(fg_color=infos.bg_color)
-            elif isinstance(widget, ctk.CTkSwitch):
-                widget.configure(
-                    text_color=infos.text_color,
-                    progress_color=infos.ctrl_color,
-                    button_color=infos.hover_color,
-                    button_hover_color=infos.error_color
-                )
-            elif isinstance(widget, ctk.CTkEntry):
-                widget.configure(
-                    text_color=infos.text_color,
-                    fg_color=infos.bg_color,
-                    border_color=infos.ctrl_color
-                )
-            elif isinstance(widget, ctk.CTkCheckBox):
-                widget.configure(
-                    text_color=infos.text_color,
-                    fg_color=infos.ctrl_color,
-                    hover_color=infos.hover_color
-                )
+        # Mise à jour itérative des widgets au lieu de récursive
+        def update_widget_colors():
+            MAX_WIDGETS = 1000  # Limite de sécurité
+            widgets_to_update = [(self, 0)]  # (widget, profondeur)
+            widget_count = 0
             
-            # Récursion sur tous les widgets enfants
-            for child in widget.winfo_children():
-                update_widget_colors(child)
+            while widgets_to_update and widget_count < MAX_WIDGETS:
+                widget, depth = widgets_to_update.pop(0)
+                widget_count += 1
+                
+                # Mise à jour des couleurs selon le type de widget
+                if isinstance(widget, ctk.CTkLabel):
+                    widget.configure(text_color=infos.text_color)
+                elif isinstance(widget, ctk.CTkButton):
+                    widget.configure(
+                        fg_color=infos.ctrl_color,
+                        hover_color=infos.hover_color,
+                        text_color=infos.text_color
+                    )
+                elif isinstance(widget, ctk.CTkFrame):
+                    if widget.cget("fg_color") != "transparent":
+                        widget.configure(fg_color=infos.bg_color)
+                elif isinstance(widget, ctk.CTkSwitch):
+                    widget.configure(
+                        text_color=infos.text_color,
+                        progress_color=infos.ctrl_color,
+                        button_color=infos.hover_color,
+                        button_hover_color=infos.error_color
+                    )
+                elif isinstance(widget, ctk.CTkEntry):
+                    widget.configure(
+                        text_color=infos.text_color,
+                        fg_color=infos.bg_color,
+                        border_color=infos.ctrl_color
+                    )
+                elif isinstance(widget, ctk.CTkCheckBox):
+                    widget.configure(
+                        text_color=infos.text_color,
+                        fg_color=infos.ctrl_color,
+                        hover_color=infos.hover_color
+                    )
+                
+                # Ajout des widgets enfants à la liste avec vérification de profondeur
+                if depth < 10:  # Limite de profondeur pour éviter les boucles infinies
+                    for child in widget.winfo_children():
+                        widgets_to_update.append((child, depth + 1))
+            
+            if widget_count >= MAX_WIDGETS:
+                print("Attention : Limite de widgets atteinte lors de la mise à jour des couleurs")
+        
+        # Appel de la fonction de mise à jour
+        update_widget_colors()
         
         # Mise à jour des labels
         self.label_welcome.configure(text_color=infos.text_color)
         
-        # Mise à jour des boutons principaux
-        for btn in [self.btn_new_plane, self.btn_new_material, self.btn_add, self.btn_withdraw, self.btn_search, self.btn_stats]:
+        # Mise à jour des boutons principaux avec une limite explicite
+        buttons = [
+            self.btn_new_plane, self.btn_new_material, self.btn_add,
+            self.btn_withdraw, self.btn_search, self.btn_stats
+        ]
+        for i, btn in enumerate(buttons):
+            if i >= 10:  # Limite de sécurité
+                break
             btn.configure(
                 fg_color=infos.ctrl_color,
                 hover_color=infos.hover_color,
@@ -795,30 +859,39 @@ class MainMenu(ctk.CTk):
             )
         
         # Mise à jour des boutons du bas
-        for btn in [self.btn_settings, self.btn_logout]:
+        bottom_buttons = [self.btn_settings, self.btn_logout]
+        for i, btn in enumerate(bottom_buttons):
+            if i >= 5:  # Limite de sécurité
+                break
             btn.configure(
                 fg_color=infos.ctrl_color,
                 text_color=infos.text_color
             )
         
+        # Mise à jour des boutons spéciaux avec vérification d'existence
+        special_buttons = []
         if hasattr(self, 'btn_users'):
-            self.btn_users.configure(
-                fg_color=infos.ctrl_color,
-                hover_color=infos.hover_color,
-                text_color=infos.text_color
-            )
-        
+            special_buttons.append(self.btn_users)
         if hasattr(self, 'btn_infos'):
-            self.btn_infos.configure(
+            special_buttons.append(self.btn_infos)
+            
+        for i, btn in enumerate(special_buttons):
+            if i >= 5:  # Limite de sécurité
+                break
+            btn.configure(
                 fg_color=infos.ctrl_color,
                 hover_color=infos.hover_color,
                 text_color=infos.text_color
             )
         
-        # Mise à jour récursive de tous les onglets
+        # Mise à jour des onglets avec limite
+        tab_count = 0
+        MAX_TABS = 20  # Limite de sécurité
         for tab_name, tab in self.tabs.items():
+            if tab_count >= MAX_TABS:
+                break
             tab.configure(fg_color=infos.bg_color)
-            update_widget_colors(tab)
+            tab_count += 1
     
     def close_tab(self, tab_name):
         """Ferme un onglet et sauvegarde ses informations."""
@@ -933,34 +1006,18 @@ class MainMenu(ctk.CTk):
         else:
             messagebox.showerror("Erreur", message)
     
-    def on_new_material(self):
-        """Gère l'ouverture de l'onglet Nouveau matériel."""
-        # Nouvel onglet ou focus sur l'ancien
-        if "Nouveau matériel" in self.tabs:
-            self.tab_control.set("Nouveau matériel")
-            return
-            
-        new_material_tab = self.tab_control.add("Nouveau matériel")
-        self.tabs["Nouveau matériel"] = new_material_tab
+    def _create_section1_widgets(self, section1_frame: ctk.CTkFrame, entry_width: int) -> None:
+        """Crée les widgets de la section 1 (Informations de base).
         
-        # Création de l'en-tête
-        self.create_tab_header(new_material_tab, "Nouveau matériel", "Nouveau matériel")
-        
-        # Frame principale pour le contenu
-        main_frame = ctk.CTkFrame(new_material_tab, fg_color="transparent")
-        main_frame.pack(fill="both", expand=True, padx=20, pady=10)
-        
-        # Création des widgets avec une largeur fixe
-        entry_width = 200  # Largeur fixe pour tous les champs de saisie
-        
-        # --- Section 1 : Informations de base (4 colonnes) ---
-        section1_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        section1_frame.pack(fill="x", pady=(0, 10))
-        
+        Args:
+            section1_frame: Frame contenant les widgets
+            entry_width: Largeur des champs de saisie
+        """
+        # Configuration de la grille
         for i in range(8):  # 4 colonnes * 2 (pour les espacements)
             section1_frame.grid_columnconfigure(i, weight=1)
             
-        # Widgets de la section 1
+        # Création des widgets
         self.ctrl_rayonnage = ctk.CTkEntry(section1_frame, width=entry_width)
         self.ctrl_etagere = ctk.CTkEntry(section1_frame, width=entry_width)
         self.ctrl_description = ctk.CTkEntry(section1_frame, width=entry_width)
@@ -970,7 +1027,7 @@ class MainMenu(ctk.CTk):
         self.ctrl_quantity = ctk.CTkEntry(section1_frame, width=entry_width)
         self.ctrl_minimum = ctk.CTkEntry(section1_frame, width=entry_width)
         
-        # Liste des widgets de la section 1
+        # Liste des widgets
         section1_widgets = [
             ("Rayonnage", self.ctrl_rayonnage),
             ("Étagère", self.ctrl_etagere),
@@ -982,7 +1039,7 @@ class MainMenu(ctk.CTk):
             ("Minimum", self.ctrl_minimum)
         ]
         
-        # Placement des widgets de la section 1
+        # Placement des widgets
         for idx, (label_text, ctrl) in enumerate(section1_widgets):
             col = (idx % 4) * 2
             row = idx // 4 * 2
@@ -991,19 +1048,21 @@ class MainMenu(ctk.CTk):
             label.grid(row=row, column=col, columnspan=2, padx=10, pady=(10,0))
             ctrl.grid(row=row+1, column=col, columnspan=2, padx=10, pady=(0,10))
             ctrl.configure(justify="center")
+            
+        return section1_widgets
+
+    def _create_section2_widgets(self, section2_frame: ctk.CTkFrame, entry_width: int) -> None:
+        """Crée les widgets de la section 2 (Options et maintenance).
         
-        # Séparateur entre section 1 et 2
-        separator1 = ctk.CTkFrame(main_frame, height=1, fg_color=infos.separator_color)
-        separator1.pack(fill="x", padx=infos.SMALL_PAD, pady=10)
-        
-        # --- Section 2 : Options et maintenance (3 colonnes) ---
-        section2_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        section2_frame.pack(fill="x", pady=(0, 10))
-        
+        Args:
+            section2_frame: Frame contenant les widgets
+            entry_width: Largeur des champs de saisie
+        """
+        # Configuration de la grille
         for i in range(6):  # 3 colonnes * 2
             section2_frame.grid_columnconfigure(i, weight=1)
             
-        # Widgets de la section 2
+        # Création des widgets
         self.ctrl_50h = ctk.CTkCheckBox(section2_frame, text="")
         self.ctrl_100h = ctk.CTkCheckBox(section2_frame, text="")
         self.ctrl_200h = ctk.CTkCheckBox(section2_frame, text="")
@@ -1011,7 +1070,7 @@ class MainMenu(ctk.CTk):
         self.ctrl_cost = ctk.CTkEntry(section2_frame, width=entry_width)
         self.ctrl_remarks = ctk.CTkEntry(section2_frame, width=entry_width)
         
-        # Liste des widgets de la section 2
+        # Liste des widgets
         section2_widgets = [
             ("50H", self.ctrl_50h),
             ("100H", self.ctrl_100h),
@@ -1021,7 +1080,7 @@ class MainMenu(ctk.CTk):
             ("Remarques", self.ctrl_remarks)
         ]
         
-        # Placement des widgets de la section 2
+        # Placement des widgets
         for idx, (label_text, ctrl) in enumerate(section2_widgets):
             col = (idx % 3) * 2
             row = idx // 3 * 2
@@ -1031,15 +1090,16 @@ class MainMenu(ctk.CTk):
             ctrl.grid(row=row+1, column=col, columnspan=2, padx=10, pady=(0,10))
             if isinstance(ctrl, ctk.CTkEntry):
                 ctrl.configure(justify="center")
+                
+        return section2_widgets
+
+    def _create_section3_widgets(self, section3_frame: ctk.CTkFrame) -> None:
+        """Crée les widgets de la section 3 (Avions associés).
         
-        # Séparateur entre section 2 et 3
-        separator2 = ctk.CTkFrame(main_frame, height=1, fg_color=infos.separator_color)
-        separator2.pack(fill="x", padx=infos.SMALL_PAD, pady=10)
-        
-        # --- Section 3 : Avions associés (5 colonnes) ---
-        section3_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        section3_frame.pack(fill="x", pady=(0, 20))
-        
+        Args:
+            section3_frame: Frame contenant les widgets
+        """
+        # Configuration de la grille
         for i in range(10):  # 5 colonnes * 2
             section3_frame.grid_columnconfigure(i, weight=1)
         
@@ -1048,7 +1108,7 @@ class MainMenu(ctk.CTk):
             planes = db.get_all_planes()
             self.plane_checkboxes = {}
             
-            # Création et placement des checkboxes pour les avions
+            # Création et placement des checkboxes
             for idx, plane in enumerate(planes):
                 col = (idx % 5) * 2
                 row = idx // 5 * 2
@@ -1062,6 +1122,64 @@ class MainMenu(ctk.CTk):
         except Exception as e:
             print(f"Erreur lors de la récupération des avions : {str(e)}")
             self.plane_checkboxes = {}
+
+    def _setup_navigation(self, all_widgets: list) -> None:
+        """Configure la navigation avec la touche Entrée.
+        
+        Args:
+            all_widgets: Liste des widgets à lier
+        """
+        for i in range(len(all_widgets)-1):
+            if isinstance(all_widgets[i][1], ctk.CTkEntry):
+                all_widgets[i][1].bind("<Return>", 
+                    lambda e, next_widget=all_widgets[i+1][1]: next_widget.focus())
+        
+        if all_widgets:
+            all_widgets[-1][1].bind("<Return>", lambda e: self.validate_new_material())
+
+    def on_new_material(self):
+        """Gère l'ouverture de l'onglet Nouveau matériel."""
+        # Vérification de l'existence de l'onglet
+        if "Nouveau matériel" in self.tabs:
+            self.tab_control.set("Nouveau matériel")
+            return
+            
+        # Création de l'onglet
+        new_material_tab = self.tab_control.add("Nouveau matériel")
+        self.tabs["Nouveau matériel"] = new_material_tab
+        
+        # Création de l'en-tête
+        self.create_tab_header(new_material_tab, "Nouveau matériel", "Nouveau matériel")
+        
+        # Frame principale
+        main_frame = ctk.CTkFrame(new_material_tab, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        # Largeur fixe pour les champs de saisie
+        entry_width = 200
+        
+        # Section 1 : Informations de base
+        section1_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        section1_frame.pack(fill="x", pady=(0, 10))
+        section1_widgets = self._create_section1_widgets(section1_frame, entry_width)
+        
+        # Séparateur 1
+        separator1 = ctk.CTkFrame(main_frame, height=1, fg_color=infos.separator_color)
+        separator1.pack(fill="x", padx=infos.SMALL_PAD, pady=10)
+        
+        # Section 2 : Options et maintenance
+        section2_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        section2_frame.pack(fill="x", pady=(0, 10))
+        section2_widgets = self._create_section2_widgets(section2_frame, entry_width)
+        
+        # Séparateur 2
+        separator2 = ctk.CTkFrame(main_frame, height=1, fg_color=infos.separator_color)
+        separator2.pack(fill="x", padx=infos.SMALL_PAD, pady=10)
+        
+        # Section 3 : Avions associés
+        section3_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        section3_frame.pack(fill="x", pady=(0, 20))
+        self._create_section3_widgets(section3_frame)
         
         # Bouton de validation
         button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
@@ -1075,130 +1193,130 @@ class MainMenu(ctk.CTk):
         )
         self.btn_validate_material.pack()
         
-        # Configuration de la navigation avec la touche Entrée
-        all_widgets = section1_widgets + section2_widgets
-        for i in range(len(all_widgets)-1):
-            if isinstance(all_widgets[i][1], ctk.CTkEntry):
-                all_widgets[i][1].bind("<Return>", 
-                    lambda e, next_widget=all_widgets[i+1][1]: next_widget.focus())
-        
-        if all_widgets:
-            all_widgets[-1][1].bind("<Return>", lambda e: self.validate_new_material())
+        # Configuration de la navigation
+        self._setup_navigation(section1_widgets + section2_widgets)
         
         # Focus sur le premier champ
         self.ctrl_rayonnage.focus()
         
-        # Focus sur le Nouvel onglet (déplacé à la fin)
+        # Focus sur le nouvel onglet
         self.tab_control.set("Nouveau matériel")
     
-    def validate_new_material(self):
-        """Valide l'ajout d'un nouveau matériel."""
-        # Génération automatique du numéro au format [YY][WW]
-        current_date = datetime.now()
-        year_last_two_digits = str(current_date.year)[-2:]
-        week_number = current_date.strftime("%V")
-        auto_numero = f"{year_last_two_digits}{week_number}"
-
-        # Récupération des valeurs
-        values = {
-            "Numero": auto_numero,
+    def _validate_required_fields(self) -> Tuple[bool, str]:
+        """Vérifie que les champs obligatoires sont remplis.
+        
+        Returns:
+            Tuple[bool, str]: (True si valide, message d'erreur sinon)
+        """
+        required_fields = {
             "Rayonnage": self.ctrl_rayonnage.get(),
-            "Etagere": self.ctrl_etagere.get(),
+            "Étagère": self.ctrl_etagere.get(),
             "Description": self.ctrl_description.get(),
-            "Providers": self.ctrl_providers.get(),
-            "PN": self.ctrl_pn.get(),
-            "Order": self.ctrl_order.get(),
-            "Quantity": self.ctrl_quantity.get(),
-            "Minimum": self.ctrl_minimum.get(),
-            "50H": 1 if self.ctrl_50h.get() == 1 else 0,
-            "100H": 1 if self.ctrl_100h.get() == 1 else 0,
-            "200H_ou_annuelle": 1 if self.ctrl_200h.get() == 1 else 0,
-            "Providers_ACTF": self.ctrl_providers_actf.get(),
-            "Cost_Estimate": self.ctrl_cost.get(),
-            "Remarks": self.ctrl_remarks.get()
+            "Quantité": self.ctrl_quantity.get(),
+            "Minimum": self.ctrl_minimum.get()
         }
+        
+        for field_name, value in required_fields.items():
+            if not value.strip():
+                return False, f"Le champ {field_name} est obligatoire."
+                
+        return True, ""
 
-        # Ajout des valeurs des cases à cocher des avions
-        for plane_name, checkbox in self.plane_checkboxes.items():
-            values[f"Plane_{plane_name}"] = 1 if checkbox.get() == 1 else 0
+    def _validate_numeric_fields(self) -> Tuple[bool, str, Dict[str, float]]:
+        """Vérifie que les champs numériques sont valides.
         
-        # Vérification qu'au moins un champ est rempli
-        if not any(values.values()):
-            messagebox.showerror(
-                "Erreur",
-                "Veuillez remplir au moins un champ"
-            )
-            return
+        Returns:
+            Tuple[bool, str, Dict[str, float]]: (True si valide, message d'erreur, valeurs converties)
+        """
+        numeric_fields = {
+            "Quantité": self.ctrl_quantity.get(),
+            "Minimum": self.ctrl_minimum.get(),
+            "Coût": self.ctrl_cost.get() if self.ctrl_cost.get() else "0"
+        }
         
-        # Conversion des valeurs numériques
-        numeric_fields = ["Quantity", "Minimum", "Cost_Estimate"]
+        converted_values = {}
+        for field_name, value in numeric_fields.items():
+            try:
+                converted_values[field_name] = float(value)
+                if converted_values[field_name] < 0:
+                    return False, f"Le champ {field_name} ne peut pas être négatif.", {}
+            except ValueError:
+                return False, f"Le champ {field_name} doit être un nombre.", {}
+                
+        return True, "", converted_values
+
+    def _get_selected_planes(self) -> List[str]:
+        """Récupère la liste des avions sélectionnés.
         
-        for field in numeric_fields:
-            if values[field]:
-                try:
-                    values[field] = int(values[field])
-                except ValueError:
-                    messagebox.showerror(
-                        "Erreur",
-                        f"Le champ {field} doit être un nombre entier"
-                    )
-                    return
-            else:
-                values[field] = 0  # Valeur par défaut si vide
+        Returns:
+            List[str]: Liste des immatriculations des avions sélectionnés
+        """
+        return [plane for plane, checkbox in self.plane_checkboxes.items() 
+                if checkbox.get()]
+
+    def _insert_material(self, numeric_values: Dict[str, float]) -> Tuple[bool, str]:
+        """Insère le nouveau matériel dans la base de données.
         
-        # Calcul automatique de Stock_Estimate_HT
-        values["Stock_Estimate_HT"] = values["Quantity"] * values["Cost_Estimate"]
-        
+        Args:
+            numeric_values: Dictionnaire des valeurs numériques validées
+            
+        Returns:
+            Tuple[bool, str]: (True si succès, message d'erreur sinon)
+        """
         try:
-            # Connexion à la base de données
-            conn = sqlite3.connect(os.path.join(infos.PATH, "bdd_all.db"))
-            cursor = conn.cursor()
+            # Préparation des données
+            material_data = {
+                "rayonnage": self.ctrl_rayonnage.get().strip(),
+                "etagere": self.ctrl_etagere.get().strip(),
+                "description": self.ctrl_description.get().strip(),
+                "providers": self.ctrl_providers.get().strip(),
+                "pn": self.ctrl_pn.get().strip(),
+                "order": self.ctrl_order.get().strip(),
+                "quantity": numeric_values["Quantité"],
+                "minimum": numeric_values["Minimum"],
+                "providers_actf": self.ctrl_providers_actf.get().strip(),
+                "cost": numeric_values["Coût"],
+                "remarks": self.ctrl_remarks.get().strip(),
+                "maintenance": {
+                    "50h": self.ctrl_50h.get(),
+                    "100h": self.ctrl_100h.get(),
+                    "200h": self.ctrl_200h.get()
+                },
+                "planes": self._get_selected_planes()
+            }
             
             # Insertion dans la base de données
-            cursor.execute('''
-                INSERT INTO magasin (
-                    "Numero", "Rayonnage", "Etagere", "Description", "Providers",
-                    "PN", "Order", "Quantity", "Minimum", "50H",
-                    "100H", "200H_ou_annuelle", "Providers_ACTF",
-                    "Cost_Estimate", "Stock_Estimate_HT", "Remarks"
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                values["Numero"], values["Rayonnage"], values["Etagere"],
-                values["Description"], values["Providers"], values["PN"],
-                values["Order"], values["Quantity"], values["Minimum"],
-                values["50H"], values["100H"], values["200H_ou_annuelle"],
-                values["Providers_ACTF"], values["Cost_Estimate"],
-                values["Stock_Estimate_HT"], values["Remarks"]
-            ))
-            
-            conn.commit()
-            conn.close()
-            
-            # Message de succès
-            messagebox.showinfo(
-                "Succès",
-                f"Le matériel a été ajouté avec succès"
-            )
-            
-            # Réinitialisation des champs
-            for ctrl in [
-                self.ctrl_rayonnage, self.ctrl_etagere, self.ctrl_description,
-                self.ctrl_providers, self.ctrl_pn, self.ctrl_order,
-                self.ctrl_quantity, self.ctrl_minimum, self.ctrl_50h,
-                self.ctrl_100h, self.ctrl_200h, self.ctrl_providers_actf,
-                self.ctrl_cost, self.ctrl_remarks
-            ]:
-                if hasattr(ctrl, 'delete'):
-                    ctrl.delete(0, "end")
-            
-            # Focus sur le premier champ
-            self.ctrl_rayonnage.focus()
+            success = db.insert_material(material_data)
+            if not success:
+                return False, "Erreur lors de l'insertion dans la base de données."
+                
+            return True, "Matériel ajouté avec succès !"
             
         except Exception as e:
-            messagebox.showerror(
-                "Erreur",
-                f"Erreur lors de l'ajout du matériel : {str(e)}"
-            )
+            return False, f"Erreur inattendue : {str(e)}"
+
+    def validate_new_material(self):
+        """Valide et enregistre le nouveau matériel."""
+        # Validation des champs obligatoires
+        valid, message = self._validate_required_fields()
+        if not valid:
+            messagebox.showerror("Erreur", message)
+            return
+            
+        # Validation des champs numériques
+        valid, message, numeric_values = self._validate_numeric_fields()
+        if not valid:
+            messagebox.showerror("Erreur", message)
+            return
+            
+        # Insertion dans la base de données
+        success, message = self._insert_material(numeric_values)
+        if success:
+            messagebox.showinfo("Succès", message)
+            self.tab_control.delete("Nouveau matériel")
+            del self.tabs["Nouveau matériel"]
+        else:
+            messagebox.showerror("Erreur", message)
 
     def change_password(self):
         """Gère le changement de mot de passe."""
