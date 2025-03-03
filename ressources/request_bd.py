@@ -93,6 +93,27 @@ class DatabaseQueries:
         assert isinstance(config, DatabaseConfig), "La configuration doit être de type DatabaseConfig"
         self.config = config
     
+    def query(self, sql: str, params: tuple = ()) -> List[Tuple]:
+        """Exécute une requête SQL et retourne les résultats.
+        
+        Args:
+            sql: Requête SQL à exécuter
+            params: Paramètres de la requête
+            
+        Returns:
+            Liste des résultats
+            
+        Raises:
+            sqlite3.Error: En cas d'erreur d'exécution
+        """
+        try:
+            with DatabaseConnection(self.config) as (_, cursor):
+                cursor.execute(sql, params)
+                return cursor.fetchall()
+        except Exception as e:
+            print(f"Erreur lors de l'exécution de la requête : {str(e)}")
+            return []
+    
     def _validate_text_input(self, text: str, field_name: str, max_length: int = MAX_FIELD_LENGTH) -> None:
         """Valide une entrée texte.
         
@@ -361,6 +382,41 @@ class DatabaseQueries:
         except Exception as e:
             print(f"Erreur lors de la récupération des avions : {str(e)}")
             return []
+    
+    def get_cost_stats_by_plane(self) -> Dict[str, float]:
+        """Calcule le coût moyen des pièces par avion."""
+        try:
+            with DatabaseConnection(self.config) as (_, cursor):
+                cursor.execute('''
+                    SELECT p.name, AVG(m.Cost_Estimate) as avg_cost
+                    FROM planes p
+                    JOIN planes_magasin pm ON p."ID plane" = pm."ID plane"
+                    JOIN magasin m ON m."ID stuff" = pm."ID stuff"
+                    GROUP BY p.name
+                ''')
+                return {row[0]: row[1] for row in cursor.fetchall()}
+        except Exception as e:
+            print(f"Erreur lors du calcul des coûts moyens : {str(e)}")
+            return {}
+
+    def get_availability_ratio(self) -> Dict[str, float]:
+        """Calcule le ratio de disponibilité des pièces."""
+        try:
+            with DatabaseConnection(self.config) as (_, cursor):
+                cursor.execute('''
+                    SELECT 
+                        CASE 
+                            WHEN Quantity >= Minimum THEN 'Disponible'
+                            ELSE 'Sous minimum'
+                        END as status,
+                        COUNT(*) as count
+                    FROM magasin
+                    GROUP BY status
+                ''')
+                return {row[0]: row[1] for row in cursor.fetchall()}
+        except Exception as e:
+            print(f"Erreur lors du calcul des ratios de disponibilité : {str(e)}")
+            return {}
 
 
 # Instance globale pour un accès facile aux requêtes

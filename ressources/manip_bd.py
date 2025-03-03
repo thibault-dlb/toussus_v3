@@ -31,9 +31,9 @@ MAX_BATCH_SIZE = 100
 PLANE_NAME_PATTERN = re.compile(r'^[A-Z0-9-]{2,}$')
 
 # Expressions régulières pour la validation des autres champs
-PN_PATTERN = re.compile(r'^[A-Z0-9-]+$')
-ORDER_PATTERN = re.compile(r'^[A-Z0-9-]+$')
-PROVIDER_PATTERN = re.compile(r'^[A-Za-z0-9\s\-\.]+$')
+PN_PATTERN = re.compile(r'^[A-Za-z0-9\-\./\s\(\)_,±°\'\"]+$')
+ORDER_PATTERN = re.compile(r'^[A-Za-z0-9\-\./\s\(\)_,±°\'\"]*$')  # Peut être vide
+PROVIDER_PATTERN = re.compile(r'^[A-Za-z0-9\s\-\.\(\)_,±°\'\"&/]*$')  # Peut être vide
 
 # Chemin absolu du dossier ressources
 RESOURCES_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -46,7 +46,8 @@ def validate_field(
     value: str,
     pattern: re.Pattern,
     field_name: str,
-    max_length: int
+    max_length: int,
+    required: bool = True
 ) -> None:
     """Valide un champ selon un pattern et une longueur maximale.
     
@@ -55,6 +56,7 @@ def validate_field(
         pattern: Pattern de validation
         field_name: Nom du champ pour le message d'erreur
         max_length: Longueur maximale autorisée
+        required: Si True, le champ ne peut pas être vide
         
     Raises:
         ValidationError: Si la valeur est invalide
@@ -63,7 +65,7 @@ def validate_field(
         raise ValidationError(
             f"Le champ {field_name} doit être une chaîne de caractères"
         )
-    if not value.strip():
+    if required and not value.strip():
         raise ValidationError(
             f"Le champ {field_name} ne peut pas être vide"
         )
@@ -72,7 +74,7 @@ def validate_field(
             f"Le champ {field_name} est trop long "
             f"(max {max_length} caractères)"
         )
-    if not pattern.match(value):
+    if value.strip() and not pattern.match(value):
         raise ValidationError(
             f"Le champ {field_name} contient des caractères invalides"
         )
@@ -288,12 +290,12 @@ def ajouter_relations_piece_avions(
             
         cursor = conn.cursor()
         
-        cursor.execute("SELECT 1 FROM magasin WHERE id = ?", (piece_id,))
+        cursor.execute("SELECT 1 FROM magasin WHERE \"ID stuff\" = ?", (piece_id,))
         if not cursor.fetchone():
             return False, f"La pièce avec l'ID {piece_id} n'existe pas"
             
         for plane_id in plane_ids:
-            cursor.execute("SELECT 1 FROM planes WHERE id = ?", (plane_id,))
+            cursor.execute("SELECT 1 FROM planes WHERE \"ID plane\" = ?", (plane_id,))
             if not cursor.fetchone():
                 return False, f"L'avion avec l'ID {plane_id} n'existe pas"
         
@@ -302,8 +304,8 @@ def ajouter_relations_piece_avions(
                 cursor.execute(
                     '''
                     INSERT INTO planes_magasin (
-                        magasin_id,
-                        plane_id,
+                        "ID stuff",
+                        "ID plane",
                         created_at
                     ) VALUES (?, ?, CURRENT_TIMESTAMP)
                     ''',
@@ -339,72 +341,74 @@ def ajouter_relations_piece_avions(
 
 def ajouter_materiel(
     numero: str,
+    date: str,
     rayonnage: str,
     etagere: str,
     description: str,
     providers: str,
+    providers_actf: str,
     pn: str,
     order: str,
     quantity: int,
     minimum: int,
-    h50: int,
-    h100: int,
-    h200: int,
-    providers_actf: str,
-    cost_estimate: int,
-    stock_estimate_ht: int,
+    cost: float,
+    stock: float,
     remarks: str,
-    plane_ids: list[int]
+    maintenance: Dict[str, bool]
 ) -> Tuple[bool, str]:
-    """Ajoute un nouveau matériel et crée les relations avec les avions.
+    """Ajoute un nouveau matériel dans la base de données.
     
     Args:
-        numero: Numéro de la pièce
-        rayonnage: Position rayonnage
-        etagere: Position étagère
-        description: Description de la pièce
+        numero: Numéro unique du matériel
+        date: Date d'ajout
+        rayonnage: Emplacement rayonnage
+        etagere: Emplacement étagère
+        description: Description du matériel
         providers: Fournisseurs
+        providers_actf: Fournisseurs ACTF
         pn: Part Number
         order: Numéro de commande
         quantity: Quantité en stock
-        minimum: Stock minimum
-        h50: Maintenance 50H
-        h100: Maintenance 100H
-        h200: Maintenance 200H ou annuelle
-        providers_actf: Fournisseurs ACTF
-        cost_estimate: Estimation du coût
-        stock_estimate_ht: Estimation du stock HT
+        minimum: Quantité minimum
+        cost: Coût unitaire
+        stock: Valeur du stock
         remarks: Remarques
-        plane_ids: Liste des IDs des avions associés
+        maintenance: Dict des avions concernés par la maintenance
         
     Returns:
         Tuple[bool, str]: (succès, message)
     """
     conn = None
     try:
-        if (not isinstance(quantity, int) or
-                quantity < MIN_QUANTITY or
-                quantity > MAX_QUANTITY):
-            raise ValidationError(
-                f"La quantité doit être entre {MIN_QUANTITY} et {MAX_QUANTITY}"
-            )
-            
-        if (not isinstance(minimum, int) or
-                minimum < MIN_QUANTITY or
-                minimum > MAX_QUANTITY):
-            raise ValidationError(
-                f"Le stock minimum doit être entre "
-                f"{MIN_QUANTITY} et {MAX_QUANTITY}"
-            )
-            
+        # Validation des champs textuels
+        validate_field(description, PROVIDER_PATTERN, "Description", 
+                      MAX_DESCRIPTION_LENGTH)
+        validate_field(providers, PROVIDER_PATTERN, "Providers", 
+                      MAX_PROVIDER_LENGTH, required=False)
+        validate_field(providers_actf, PROVIDER_PATTERN, "Providers_ACTF",
+                      MAX_PROVIDER_LENGTH, required=False)
         validate_field(pn, PN_PATTERN, "PN", MAX_PN_LENGTH)
-        validate_field(order, ORDER_PATTERN, "Order", MAX_ORDER_LENGTH)
-        validate_field(
-            providers,
-            PROVIDER_PATTERN,
-            "Providers",
-            MAX_PROVIDER_LENGTH
-        )
+        validate_field(order, ORDER_PATTERN, "Order", MAX_ORDER_LENGTH, 
+                      required=False)
+        validate_field(rayonnage, PROVIDER_PATTERN, "Rayonnage", 
+                      MAX_NAME_LENGTH)
+        validate_field(etagere, PROVIDER_PATTERN, "Etagere", 
+                      MAX_NAME_LENGTH)
+        
+        # Validation des champs numériques
+        validate_numeric(quantity, MIN_QUANTITY, MAX_QUANTITY, "Quantity")
+        validate_numeric(minimum, MIN_QUANTITY, MAX_QUANTITY, "Minimum")
+        validate_numeric(cost, MIN_COST, MAX_COST, "Cost")
+        validate_numeric(stock, MIN_COST, MAX_COST, "Stock")
+        
+        # Validation de la maintenance
+        if not isinstance(maintenance, dict):
+            raise ValidationError("Le champ maintenance doit être un dictionnaire")
+        for key in ["50h", "100h", "200h"]:
+            if key not in maintenance:
+                raise ValidationError(f"Clé manquante dans maintenance : {key}")
+            if not isinstance(maintenance[key], bool):
+                raise ValidationError(f"Valeur invalide pour maintenance[{key}]")
         
         conn = get_db_connection()
         if conn is None:
@@ -412,60 +416,45 @@ def ajouter_materiel(
             
         cursor = conn.cursor()
         
+        # Insertion du matériel
         cursor.execute(
             '''
             INSERT INTO magasin (
-                Numero, Rayonnage, Etagere, Description, Providers,
-                PN, "Order", Quantity, Minimum, "50H", "100H",
-                "200H_ou_annuelle", Providers_ACTF, Cost_Estimate,
-                Stock_Estimate_HT, Remarks, created_at
-            ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
+                "Numero", "Rayonnage", "Etagere", "Description",
+                "Providers", "PN", "Order", "Quantity", "Minimum",
+                "50H", "100H", "200H_ou_annuelle",
+                "Providers_ACTF", "Cost_Estimate", "Stock_Estimate_HT",
+                "Remarks", "created_at", "updated_at"
             )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ''',
             (
-                numero, rayonnage, etagere, description, providers,
-                pn, order, quantity, minimum, h50, h100,
-                h200, providers_actf, cost_estimate,
-                stock_estimate_ht, remarks
+                numero, rayonnage, etagere, description,
+                providers, pn, order, quantity, minimum,
+                maintenance["50h"], maintenance["100h"], maintenance["200h"],
+                providers_actf, cost, stock,
+                remarks
             )
         )
         
+        if cursor.rowcount != 1:
+            conn.rollback()
+            return False, "Échec de l'insertion dans la base de données"
+            
+        # Récupération de l'ID du matériel inséré
         piece_id = cursor.lastrowid
         
-        if plane_ids:
-            success, message = ajouter_relations_piece_avions(
-                piece_id,
-                plane_ids
-            )
-            if not success:
-                conn.rollback()
-                return False, (
-                    f"Erreur lors de l'ajout des relations avions : {message}"
-                )
-        
         conn.commit()
-        return True, f"Matériel ajouté avec succès (ID: {piece_id})"
+        return True, "Matériel ajouté avec succès"
         
     except ValidationError as e:
-        print(f"Erreur de validation: {str(e)}")
-        return False, str(e)
+        print(f"Erreur de validation : {str(e)}")
+        return False, f"Erreur de validation: {str(e)}"
     except sqlite3.IntegrityError as e:
-        print(f"Erreur d'intégrité: {str(e)}")
-        if conn:
-            try:
-                conn.rollback()
-            except:
-                pass
-        return False, "Une contrainte d'unicité n'a pas été respectée"
+        print(f"Erreur d'intégrité : {str(e)}")
+        return False, f"Erreur d'intégrité : {str(e)}"
     except Exception as e:
-        print(f"Erreur inattendue lors de l'ajout du matériel: {str(e)}")
-        if conn:
-            try:
-                conn.rollback()
-            except:
-                pass
+        print(f"Erreur inattendue : {str(e)}")
         return False, f"Erreur lors de l'ajout du matériel : {str(e)}"
     finally:
         if conn:

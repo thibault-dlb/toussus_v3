@@ -5,20 +5,41 @@ incluant la fenêtre de connexion et le menu principal.
 """
 
 import os
+import sys
+import traceback
 from datetime import datetime
-from typing import Optional, Dict, Any, Tuple, List
+from typing import Optional, Dict, Any, Tuple, List, Union
 
 import customtkinter as ctk
 import hashlib
 import sqlite3
 from PIL import Image, ImageTk
 from tkinter import messagebox
+import matplotlib.pyplot as plt
+import pygame
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from ressources import allinfos as infos
 from ressources import bdd_users
 from ressources import manip_bd
 from ressources.request_bd import db
 from ressources.send_mail import global_email_manager
+
+# Initialisation de pygame pour la musique
+pygame.mixer.init()
+
+# Configurer la gestion des erreurs
+def log_error(error_type, error_value, error_traceback):
+    with open('error_log.txt', 'a', encoding='utf-8') as f:
+        f.write(f"\n{'='*50}\n")
+        f.write(f"Date: {datetime.now()}\n")
+        f.write(f"Type: {error_type.__name__}\n")
+        f.write(f"Message: {str(error_value)}\n")
+        f.write("Traceback:\n")
+        f.write(''.join(traceback.format_tb(error_traceback)))
+        f.write(f"\n{'='*50}\n")
+
+sys.excepthook = log_error
 
 class SignUpFrame(ctk.CTk):
     """Fenêtre de connexion de l'application.
@@ -156,6 +177,15 @@ class MainMenu(ctk.CTk):
         self._init_keyboard_shortcuts()
         self._init_resources()
         
+        # Initialisation de la musique
+        self.music_playing = False
+        self.music_path = os.path.join(infos.PATH, "immortal.mp3")
+        if os.path.exists(self.music_path):
+            pygame.mixer.music.load(self.music_path)
+            pygame.mixer.music.set_volume(0.5)
+        else:
+            print("Erreur : Le fichier de musique n'a pas été trouvé")
+        
         # Création de l'interface
         self._init_tab_system()
         self._create_main_menu()
@@ -213,7 +243,6 @@ class MainMenu(ctk.CTk):
         self.bind("<Control-q>", self.on_close)
         self.bind("<Control-s>", lambda e: self.on_settings())
         self.bind("<Control-i>", lambda e: self.on_infos())
-        self.bind("<Control-a>", lambda e: self.on_add())
         self.bind("<Control-n>", lambda e: self.on_add())
         self.bind("<Control-r>", lambda e: self.on_withdraw())
         self.bind("<Control-f>", lambda e: self.on_search())
@@ -282,10 +311,8 @@ class MainMenu(ctk.CTk):
             self.buttons_frame, "Ajouter du matériel", self.on_add, 0, 2)
         self.btn_withdraw = self._create_main_button(
             self.buttons_frame, "Retirer du matériel", self.on_withdraw, 1, 0)
-        self.btn_search = self._create_main_button(
-            self.buttons_frame, "Rechercher du matériel", self.on_search, 1, 1)
         self.btn_stats = self._create_main_button(
-            self.buttons_frame, "Statistiques", self.on_stats, 1, 2)
+            self.buttons_frame, "Statistiques", self.on_stats, 1, 1)
     
     def _create_main_button(self, parent, text, command, row, column):
         """Crée un bouton principal standardisé."""
@@ -328,7 +355,7 @@ class MainMenu(ctk.CTk):
         self._create_logout_button(self.bottom_frame)
     
     def _create_utility_buttons(self, parent):
-        """Crée les boutons utilitaires (info et paramètres)."""
+        """Crée les boutons utilitaires (info, musique et paramètres)."""
         self.btn_infos = ctk.CTkButton(
             parent,
             text="ⓘ",
@@ -340,6 +367,19 @@ class MainMenu(ctk.CTk):
             font=("Segoe UI Symbol", 24)
         )
         self.btn_infos.pack(side="left", padx=infos.SMALL_PAD)
+        
+        # Bouton musique
+        self.btn_music = ctk.CTkButton(
+            parent,
+            text="▶",
+            command=self.toggle_music,
+            width=infos.ICON_BUTTON_SIZE,
+            height=infos.ICON_BUTTON_SIZE,
+            fg_color=infos.ctrl_color,
+            hover_color=infos.hover_color,
+            font=("Segoe UI Symbol", 24)
+        )
+        self.btn_music.pack(side="left", padx=infos.SMALL_PAD)
         
         self.btn_settings = ctk.CTkButton(
             parent,
@@ -456,6 +496,7 @@ class MainMenu(ctk.CTk):
         separator.pack(fill="x", padx=infos.SMALL_PAD, pady=(0, infos.SMALL_PAD))
 
     def on_add(self):
+        """Gère l'ouverture de l'onglet Ajouter du matériel."""
         # Nouvel onglet ou focus sur l'ancien
         if "Ajouter du matériel" in self.tabs:
             self.tab_control.set("Ajouter du matériel")
@@ -471,28 +512,121 @@ class MainMenu(ctk.CTk):
         content_frame = ctk.CTkFrame(on_add_tab, fg_color="transparent")
         content_frame.pack(fill="both", expand=True, padx=20, pady=10)
         
-        # Création des widgets
-        self.label_name = ctk.CTkLabel(content_frame, text="Nom du matériel")
-        self.ctrl_materiel = ctk.CTkComboBox(content_frame, values=["Matériel 1", "Matériel 2", "Matériel 3"])
-        self.label_quantity = ctk.CTkLabel(content_frame, text="Quantité")
-        self.ctrl_quantity = ctk.CTkEntry(content_frame)
+        # Récupération des descriptions depuis la base de données
+        try:
+            descriptions = db.query("SELECT Description FROM magasin ORDER BY Description")
+            descriptions = [desc[0] for desc in descriptions if desc[0]]  # Extraction des descriptions non vides
+        except Exception as e:
+            print(f"Erreur lors de la récupération des descriptions : {str(e)}")
+            descriptions = []
         
-        # Ajout des widgets
-        self.label_name.pack(pady=10)
-        self.ctrl_materiel.pack(pady=10)
-        self.label_quantity.pack(pady=10)
+        # Section recherche de matériel
+        search_frame = ctk.CTkFrame(content_frame)
+        search_frame.pack(fill="x", padx=20, pady=10)
+        
+        # Label et combobox pour la recherche
+        self.label_search = ctk.CTkLabel(search_frame, text="Rechercher un matériel")
+        self.label_search.pack(pady=(10,0))
+        
+        self.ctrl_search = ctk.CTkComboBox(
+            search_frame, 
+            values=descriptions,
+            width=300
+        )
+        self.ctrl_search.pack(pady=10)
+        
+        # Ajout du gestionnaire d'événements pour la molette
+        self.ctrl_search._entry.bind(
+            "<MouseWheel>",
+            lambda e: self._handle_mousewheel(e, self.ctrl_search, descriptions)
+        )
+        
+        # Section quantité
+        quantity_frame = ctk.CTkFrame(content_frame)
+        quantity_frame.pack(fill="x", padx=20, pady=10)
+        
+        # Label et champ pour la quantité
+        self.label_quantity = ctk.CTkLabel(quantity_frame, text="Quantité à ajouter")
+        self.label_quantity.pack(pady=(10,0))
+        
+        self.ctrl_quantity = ctk.CTkEntry(quantity_frame, width=100)
         self.ctrl_quantity.pack(pady=10)
         
-        # Bind de la touche Entrée
-        self.ctrl_materiel.bind("<Return>", lambda e: self.ctrl_quantity.focus())
+        # Bouton de validation
+        self.btn_validate = ctk.CTkButton(
+            content_frame,
+            text="Valider",
+            command=self.validate_add,
+            width=200
+        )
+        self.btn_validate.pack(pady=20)
+        
+        # Bind des touches
+        self.ctrl_search.bind("<Return>", lambda e: self.ctrl_quantity.focus())
         self.ctrl_quantity.bind("<Return>", lambda e: self.validate_add())
         
-        # Focus sur le Nouvel onglet
-        self.tab_control.set("Ajouter du matériel")
         # Focus sur le premier champ
-        self.ctrl_materiel.focus()
-    
+        self.ctrl_search.focus()
+        
+        # Focus sur le nouvel onglet
+        self.tab_control.set("Ajouter du matériel")
+
+    def validate_add(self):
+        """Valide l'ajout de matériel."""
+        description = self.ctrl_search.get()
+        quantity = self.ctrl_quantity.get()
+        
+        # Validation des champs
+        if not description:
+            messagebox.showerror("Erreur", "Veuillez sélectionner un matériel")
+            return
+        
+        try:
+            quantity = int(quantity)
+            if quantity <= 0:
+                messagebox.showerror("Erreur", "La quantité doit être un nombre positif")
+                return
+        except ValueError:
+            messagebox.showerror("Erreur", "La quantité doit être un nombre entier")
+            return
+        
+        # Mise à jour de la base de données
+        try:
+            # Récupération de la quantité actuelle
+            result = db.query(
+                "SELECT Quantity FROM magasin WHERE Description = ?",
+                (description,)
+            )
+            
+            if not result:
+                messagebox.showerror("Erreur", "Matériel non trouvé dans la base de données")
+                return
+            
+            current_quantity = result[0][0]
+            new_quantity = current_quantity + quantity
+            
+            # Mise à jour de la quantité
+            db.query(
+                "UPDATE magasin SET Quantity = ? WHERE Description = ?",
+                (new_quantity, description)
+            )
+            
+            # Message de succès
+            messagebox.showinfo(
+                "Succès", 
+                f"Ajout de {quantity} unité(s) de {description}\nNouveau stock : {new_quantity}"
+            )
+            
+            # Réinitialisation des champs
+            self.ctrl_quantity.delete(0, "end")
+            self.ctrl_search.set("")
+            self.ctrl_search.focus()
+            
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Erreur lors de la mise à jour : {str(e)}")
+
     def on_withdraw(self):
+        """Gère l'ouverture de l'onglet Retirer du matériel."""
         # Nouvel onglet ou focus sur l'ancien
         if "Retirer du matériel" in self.tabs:
             self.tab_control.set("Retirer du matériel")
@@ -508,27 +642,128 @@ class MainMenu(ctk.CTk):
         content_frame = ctk.CTkFrame(on_withdraw_tab, fg_color="transparent")
         content_frame.pack(fill="both", expand=True, padx=20, pady=10)
         
-        # Création des widgets
-        self.label_name = ctk.CTkLabel(content_frame, text="Nom du matériel")
-        self.ctrl_materiel = ctk.CTkComboBox(content_frame, values=["Matériel 1", "Matériel 2", "Matériel 3"])
-        self.label_quantity = ctk.CTkLabel(content_frame, text="Quantité")
-        self.ctrl_quantity = ctk.CTkEntry(content_frame)
+        # Récupération des descriptions depuis la base de données
+        try:
+            descriptions = db.query("SELECT Description FROM magasin ORDER BY Description")
+            descriptions = [desc[0] for desc in descriptions if desc[0]]  # Extraction des descriptions non vides
+        except Exception as e:
+            print(f"Erreur lors de la récupération des descriptions : {str(e)}")
+            descriptions = []
         
-        # Ajout des widgets
-        self.label_name.pack(pady=10)
-        self.ctrl_materiel.pack(pady=10)
-        self.label_quantity.pack(pady=10)
+        # Section recherche de matériel
+        search_frame = ctk.CTkFrame(content_frame)
+        search_frame.pack(fill="x", padx=20, pady=10)
+        
+        # Label et combobox pour la recherche
+        self.label_search = ctk.CTkLabel(search_frame, text="Rechercher un matériel")
+        self.label_search.pack(pady=(10,0))
+        
+        self.ctrl_search = ctk.CTkComboBox(
+            search_frame, 
+            values=descriptions,
+            width=300
+        )
+        self.ctrl_search.pack(pady=10)
+        
+        # Ajout du gestionnaire d'événements pour la molette
+        self.ctrl_search._entry.bind(
+            "<MouseWheel>",
+            lambda e: self._handle_mousewheel(e, self.ctrl_search, descriptions)
+        )
+        
+        # Section quantité
+        quantity_frame = ctk.CTkFrame(content_frame)
+        quantity_frame.pack(fill="x", padx=20, pady=10)
+        
+        # Label et champ pour la quantité
+        self.label_quantity = ctk.CTkLabel(quantity_frame, text="Quantité à retirer")
+        self.label_quantity.pack(pady=(10,0))
+        
+        self.ctrl_quantity = ctk.CTkEntry(quantity_frame, width=100)
         self.ctrl_quantity.pack(pady=10)
         
-        # Bind de la touche Entrée
-        self.ctrl_materiel.bind("<Return>", lambda e: self.ctrl_quantity.focus())
+        # Bouton de validation
+        self.btn_validate = ctk.CTkButton(
+            content_frame,
+            text="Valider",
+            command=self.validate_withdraw,
+            width=200
+        )
+        self.btn_validate.pack(pady=20)
+        
+        # Bind des touches
+        self.ctrl_search.bind("<Return>", lambda e: self.ctrl_quantity.focus())
         self.ctrl_quantity.bind("<Return>", lambda e: self.validate_withdraw())
         
-        # Focus sur le Nouvel onglet
-        self.tab_control.set("Retirer du matériel")
         # Focus sur le premier champ
-        self.ctrl_materiel.focus()
-    
+        self.ctrl_search.focus()
+        
+        # Focus sur le nouvel onglet
+        self.tab_control.set("Retirer du matériel")
+
+    def validate_withdraw(self):
+        """Valide le retrait de matériel."""
+        description = self.ctrl_search.get()
+        quantity = self.ctrl_quantity.get()
+        
+        # Validation des champs
+        if not description:
+            messagebox.showerror("Erreur", "Veuillez sélectionner un matériel")
+            return
+        
+        try:
+            quantity = int(quantity)
+            if quantity <= 0:
+                messagebox.showerror("Erreur", "La quantité doit être un nombre positif")
+                return
+        except ValueError:
+            messagebox.showerror("Erreur", "La quantité doit être un nombre entier")
+            return
+        
+        # Mise à jour de la base de données
+        try:
+            # Récupération de la quantité actuelle
+            result = db.query(
+                "SELECT Quantity FROM magasin WHERE Description = ?",
+                (description,)
+            )
+            
+            if not result:
+                messagebox.showerror("Erreur", "Matériel non trouvé dans la base de données")
+                return
+            
+            current_quantity = result[0][0]
+            
+            # Vérification qu'il y a assez de stock
+            if current_quantity < quantity:
+                messagebox.showerror(
+                    "Erreur", 
+                    f"Stock insuffisant\nQuantité disponible : {current_quantity}"
+                )
+                return
+            
+            new_quantity = current_quantity - quantity
+            
+            # Mise à jour de la quantité
+            db.query(
+                "UPDATE magasin SET Quantity = ? WHERE Description = ?",
+                (new_quantity, description)
+            )
+            
+            # Message de succès
+            messagebox.showinfo(
+                "Succès", 
+                f"Retrait de {quantity} unité(s) de {description}\nNouveau stock : {new_quantity}"
+            )
+            
+            # Réinitialisation des champs
+            self.ctrl_quantity.delete(0, "end")
+            self.ctrl_search.set("")
+            self.ctrl_search.focus()
+            
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Erreur lors de la mise à jour : {str(e)}")
+
     def on_search(self):
         # Nouvel onglet ou focus sur l'ancien
         if "Rechercher du matériel" in self.tabs:
@@ -545,7 +780,7 @@ class MainMenu(ctk.CTk):
         self.tab_control.set("Rechercher du matériel")
     
     def on_stats(self):
-        # Nouvel onglet ou focus sur l'ancien
+        """Gère l'ouverture de l'onglet Statistiques."""
         if "Statistiques" in self.tabs:
             self.tab_control.set("Statistiques")
             return
@@ -560,7 +795,19 @@ class MainMenu(ctk.CTk):
         main_frame = ctk.CTkScrollableFrame(on_stats_tab)
         main_frame.pack(fill="both", expand=True, padx=20, pady=10)
         
-        # Section: Envoi de rapport par email
+        # Frame pour les graphiques
+        self.stats_frame = ctk.CTkFrame(main_frame)
+        self.stats_frame.pack(fill="x", padx=20, pady=10)
+        
+        # Bouton de rafraîchissement
+        refresh_btn = ctk.CTkButton(
+            main_frame,
+            text="Rafraîchir les statistiques",
+            command=self.update_statistics
+        )
+        refresh_btn.pack(pady=10)
+        
+        # Section email (code existant)
         email_frame = ctk.CTkFrame(main_frame)
         email_frame.pack(fill="x", padx=20, pady=10)
         
@@ -626,13 +873,62 @@ class MainMenu(ctk.CTk):
         )
         self.last_send_label.pack(side="left", padx=20)
         
-        # Focus sur le Nouvel onglet
-        self.tab_control.set("Statistiques")
+        # Afficher les statistiques initiales
+        self.update_statistics()
         
+        # Focus sur le nouvel onglet
+        self.tab_control.set("Statistiques")
+    
+    def create_pie_chart(self, data: Dict[str, Union[float, int]], title: str) -> FigureCanvasTkAgg:
+        """Crée un graphique en camembert."""
+        # Augmentation de la taille de 6x4 à 12x8
+        fig, ax = plt.subplots(figsize=(12, 8))
+        labels = list(data.keys())
+        values = list(data.values())
+        
+        if sum(values) > 0:  # Vérifier qu'il y a des données à afficher
+            # Augmenter la taille de la police pour le titre et les labels
+            ax.pie(values, labels=labels, autopct='%1.1f%%', textprops={'fontsize': 12})
+            ax.set_title(title, pad=20, fontsize=14)
+        else:
+            ax.text(0.5, 0.5, "Pas de données", ha='center', va='center', fontsize=14)
+        
+        canvas = FigureCanvasTkAgg(fig, master=self.stats_frame)
+        return canvas
+
+    def update_statistics(self):
+        """Met à jour les graphiques statistiques."""
+        # Nettoyer les anciens graphiques
+        for widget in self.stats_frame.winfo_children():
+            widget.destroy()
+
+        # Récupérer les données
+        cost_stats = db.get_cost_stats_by_plane()
+        availability_stats = db.get_availability_ratio()
+
+        # Créer les graphiques
+        cost_canvas = self.create_pie_chart(
+            cost_stats, 
+            "Coût moyen des pièces par avion"
+        )
+        availability_canvas = self.create_pie_chart(
+            availability_stats, 
+            "Ratio de disponibilité des pièces"
+        )
+
+        # Afficher les graphiques
+        cost_canvas.get_tk_widget().pack(pady=10)
+        availability_canvas.get_tk_widget().pack(pady=10)
+
+        # Rafraîchir les graphiques
+        cost_canvas.draw()
+        availability_canvas.draw()
+
     def send_stats_report(self):
         """Envoie le rapport statistique par email."""
         try:
-            global_email_manager.envoyer_rapport_statistiques("destinataire@example.com")
+            destinataire = self.email_entry.get()
+            global_email_manager.envoyer_rapport_statistiques(destinataire)
         except Exception as e:
             print(f"Erreur lors de l'envoi du rapport : {str(e)}")
 
@@ -749,6 +1045,7 @@ class MainMenu(ctk.CTk):
             messagebox.showerror("Erreur", message)
 
     def on_infos(self):
+        """Gère l'ouverture de l'onglet Informations."""
         # Nouvel onglet ou focus sur l'ancien
         if "Informations" in self.tabs:
             self.tab_control.set("Informations")
@@ -760,7 +1057,73 @@ class MainMenu(ctk.CTk):
         # Création de l'en-tête
         self.create_tab_header(on_infos_tab, "Informations", "Informations")
         
-        # Focus sur le Nouvel onglet
+        # Frame principale avec scrollbar
+        main_frame = ctk.CTkScrollableFrame(on_infos_tab)
+        main_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        # Section développeurs
+        dev_frame = ctk.CTkFrame(main_frame)
+        dev_frame.pack(fill="x", padx=20, pady=10)
+        
+        dev_title = ctk.CTkLabel(
+            dev_frame,
+            text="Développeurs",
+            font=infos.SUBTITLE_FONT,
+            text_color=infos.text_color
+        )
+        dev_title.pack(pady=10)
+        
+        devs = ctk.CTkLabel(
+            dev_frame,
+            text="Thibault de Laubrière\nJules Gillet",
+            justify="center"
+        )
+        devs.pack(pady=10)
+        
+        # Section mentions spéciales
+        special_frame = ctk.CTkFrame(main_frame)
+        special_frame.pack(fill="x", padx=20, pady=10)
+        
+        special_title = ctk.CTkLabel(
+            special_frame,
+            text="Mentions spéciales",
+            font=infos.SUBTITLE_FONT,
+            text_color=infos.text_color
+        )
+        special_title.pack(pady=10)
+        
+        special_mentions = ctk.CTkLabel(
+            special_frame,
+            text="Jacques Truchet, client initial du projet, directeur technique chez ATCF\n"
+                 "Christopher Madi, ami Software Engineer at Murex (nous a conseillé et a testé le projet)\n"
+                 "Cédric Couette, ami ingénieur chez Safran (nous a conseillé pour les bases SQL)\n"
+                 "Mehdi Ben-Thaier, superviseur du projet\n"
+                 "V2F, youtubeur qui nous a donné quelques idées (règles de la NASA)",
+            justify="left",
+            wraplength=600
+        )
+        special_mentions.pack(pady=10)
+        
+        # Section contact
+        contact_frame = ctk.CTkFrame(main_frame)
+        contact_frame.pack(fill="x", padx=20, pady=10)
+        
+        contact_title = ctk.CTkLabel(
+            contact_frame,
+            text="Contact",
+            font=infos.SUBTITLE_FONT,
+            text_color=infos.text_color
+        )
+        contact_title.pack(pady=10)
+        
+        contact_info = ctk.CTkLabel(
+            contact_frame,
+            text="Pour toute question, suggestion ou signalement de bug :\nthibdelaub@outlook.fr",
+            justify="center"
+        )
+        contact_info.pack(pady=10)
+        
+        # Focus sur le nouvel onglet
         self.tab_control.set("Informations")
     
     def on_settings(self):
@@ -918,6 +1281,9 @@ class MainMenu(ctk.CTk):
     def _safe_destroy(self):
         """Détruit proprement la fenêtre en annulant les tâches en attente."""
         try:
+            # Arrêt de la musique
+            if hasattr(self, 'music_playing') and self.music_playing:
+                pygame.mixer.music.stop()
             self.destroy()
         except Exception as e:
             print(f"Erreur lors de la destruction de la fenêtre : {e}")
@@ -992,29 +1358,28 @@ class MainMenu(ctk.CTk):
         self.ctrl_quantity = ctk.CTkEntry(section1_frame, width=entry_width)
         self.ctrl_minimum = ctk.CTkEntry(section1_frame, width=entry_width)
         
-        # Liste des widgets
-        section1_widgets = [
+        # Labels correspondants
+        labels = [
             ("Rayonnage", self.ctrl_rayonnage),
             ("Étagère", self.ctrl_etagere),
             ("Description", self.ctrl_description),
-            ("Fournisseurs", self.ctrl_providers),
+            ("Fournisseur", self.ctrl_providers),
             ("PN", self.ctrl_pn),
             ("Order", self.ctrl_order),
             ("Quantité", self.ctrl_quantity),
             ("Minimum", self.ctrl_minimum)
         ]
         
-        # Placement des widgets
-        for idx, (label_text, ctrl) in enumerate(section1_widgets):
-            col = (idx % 4) * 2
-            row = idx // 4 * 2
+        # Placement des widgets dans la grille (4x4)
+        for idx, (label_text, ctrl) in enumerate(labels):
+            row = (idx // 4) * 2  # 4 colonnes
+            col = (idx % 4) * 2   # 4 lignes
             
-            label = ctk.CTkLabel(section1_frame, text=label_text, anchor="center")
+            label = ctk.CTkLabel(section1_frame, text=label_text)
             label.grid(row=row, column=col, columnspan=2, padx=10, pady=(10,0))
             ctrl.grid(row=row+1, column=col, columnspan=2, padx=10, pady=(0,10))
-            ctrl.configure(justify="center")
-            
-        return section1_widgets
+        
+        return [(label, ctrl) for label, ctrl in labels]
 
     def _create_section2_widgets(self, section2_frame: ctk.CTkFrame, entry_width: int) -> None:
         """Crée les widgets de la section 2 (Options et maintenance).
@@ -1026,7 +1391,7 @@ class MainMenu(ctk.CTk):
         # Configuration de la grille
         for i in range(6):  # 3 colonnes * 2
             section2_frame.grid_columnconfigure(i, weight=1)
-            
+        
         # Création des widgets
         self.ctrl_50h = ctk.CTkCheckBox(section2_frame, text="")
         self.ctrl_100h = ctk.CTkCheckBox(section2_frame, text="")
@@ -1050,12 +1415,15 @@ class MainMenu(ctk.CTk):
             col = (idx % 3) * 2
             row = idx // 3 * 2
             
+            # Création du label centré
             label = ctk.CTkLabel(section2_frame, text=label_text, anchor="center")
             label.grid(row=row, column=col, columnspan=2, padx=10, pady=(10,0))
+            
+            # Placement du contrôle
             ctrl.grid(row=row+1, column=col, columnspan=2, padx=10, pady=(0,10))
             if isinstance(ctrl, ctk.CTkEntry):
                 ctrl.configure(justify="center")
-                
+        
         return section2_widgets
 
     def _create_section3_widgets(self, section3_frame: ctk.CTkFrame) -> None:
@@ -1078,11 +1446,19 @@ class MainMenu(ctk.CTk):
                 col = (idx % 5) * 2
                 row = idx // 5 * 2
                 
-                self.plane_checkboxes[plane[0]] = ctk.CTkCheckBox(section3_frame, text="")
-                
+                # Label au-dessus
                 label = ctk.CTkLabel(section3_frame, text=plane[0], anchor="center")
                 label.grid(row=row, column=col, columnspan=2, padx=10, pady=(10,0))
-                self.plane_checkboxes[plane[0]].grid(row=row+1, column=col, columnspan=2, padx=10, pady=(0,10))
+                
+                # Création d'un frame container pour la checkbox avec une hauteur fixe
+                container = ctk.CTkFrame(section3_frame, fg_color="transparent", height=30)
+                container.grid(row=row+1, column=col, columnspan=2, padx=10, pady=(0,10))
+                container.pack_propagate(False)  # Empêche le frame de se redimensionner
+                
+                # Création et placement de la checkbox
+                checkbox = ctk.CTkCheckBox(container, text="")
+                checkbox.pack(expand=True)
+                self.plane_checkboxes[plane[0]] = checkbox
                 
         except Exception as e:
             print(f"Erreur lors de la récupération des avions : {str(e)}")
@@ -1205,6 +1581,19 @@ class MainMenu(ctk.CTk):
                 converted_values[field_name] = float(value)
                 if converted_values[field_name] < 0:
                     return False, f"Le champ {field_name} ne peut pas être négatif.", {}
+                
+                # Validation spécifique pour la quantité et le minimum
+                if field_name in ["Quantité", "Minimum"]:
+                    if not float(value).is_integer():
+                        return False, f"Le champ {field_name} doit être un nombre entier.", {}
+                    if converted_values[field_name] > 10000:
+                        return False, f"Le champ {field_name} ne peut pas dépasser 10000.", {}
+                
+                # Validation spécifique pour les coûts
+                if field_name == "Coût":
+                    if converted_values[field_name] > 1000000:
+                        return False, f"Le champ {field_name} ne peut pas dépasser 1 000 000.", {}
+                    
             except ValueError:
                 return False, f"Le champ {field_name} doit être un nombre.", {}
                 
@@ -1229,33 +1618,61 @@ class MainMenu(ctk.CTk):
             Tuple[bool, str]: (True si succès, message d'erreur sinon)
         """
         try:
+            # Génération automatique du numéro
+            from datetime import datetime
+            current_date = datetime.now()
+            year_last_two = str(current_date.year)[-2:]
+            week_number = current_date.strftime("%V")  # Numéro de la semaine sur 2 chiffres
+            numero = f"{year_last_two}{week_number}"
+            
             # Préparation des données
-            material_data = {
-                "rayonnage": self.ctrl_rayonnage.get().strip(),
-                "etagere": self.ctrl_etagere.get().strip(),
-                "description": self.ctrl_description.get().strip(),
-                "providers": self.ctrl_providers.get().strip(),
-                "pn": self.ctrl_pn.get().strip(),
-                "order": self.ctrl_order.get().strip(),
-                "quantity": numeric_values["Quantité"],
-                "minimum": numeric_values["Minimum"],
-                "providers_actf": self.ctrl_providers_actf.get().strip(),
-                "cost": numeric_values["Coût"],
-                "remarks": self.ctrl_remarks.get().strip(),
-                "maintenance": {
-                    "50h": self.ctrl_50h.get(),
-                    "100h": self.ctrl_100h.get(),
-                    "200h": self.ctrl_200h.get()
-                },
-                "planes": self._get_selected_planes()
+            maintenance = {
+                "50h": int(self.ctrl_50h.get()),
+                "100h": int(self.ctrl_100h.get()),
+                "200h": int(self.ctrl_200h.get())
             }
             
-            # Insertion dans la base de données
-            success = db.insert_material(material_data)
-            if not success:
-                return False, "Erreur lors de l'insertion dans la base de données."
-                
-            return True, "Matériel ajouté avec succès !"
+            # Récupération des IDs des avions sélectionnés
+            selected_planes = self._get_selected_planes()
+            plane_ids = []
+            
+            # Conversion des noms d'avions en IDs
+            for plane_name in selected_planes:
+                try:
+                    result = db.query('SELECT "ID plane" FROM planes WHERE name = ?', (plane_name,))
+                    if result:
+                        plane_ids.append(result[0][0])
+                except Exception as e:
+                    print(f"Erreur lors de la récupération de l'ID de l'avion {plane_name}: {str(e)}")
+            
+            # Calcul du stock_estimate_ht (coût total)
+            stock_estimate_ht = numeric_values["Coût"] * int(numeric_values["Quantité"])
+            
+            # Vérification et préparation du champ order
+            order = self.ctrl_order.get().strip()
+            if not order:  # Si vide, on met 0 par défaut
+                order = "0"
+            
+            # Appel de la fonction d'ajout
+            success, message = manip_bd.ajouter_materiel(
+                numero=numero,
+                rayonnage=self.ctrl_rayonnage.get().strip(),
+                etagere=self.ctrl_etagere.get().strip(),
+                description=self.ctrl_description.get().strip(),
+                providers=self.ctrl_providers.get().strip(),
+                pn=self.ctrl_pn.get().strip(),
+                order=order,
+                quantity=int(numeric_values["Quantité"]),
+                minimum=int(numeric_values["Minimum"]),
+                maintenance=maintenance,
+                providers_actf=self.ctrl_providers_actf.get().strip(),
+                cost_estimate=numeric_values["Coût"],
+                stock_estimate_ht=stock_estimate_ht,
+                remarks=self.ctrl_remarks.get().strip(),
+                plane_ids=plane_ids
+            )
+            
+            return success, message
             
         except Exception as e:
             return False, f"Erreur inattendue : {str(e)}"
@@ -1332,6 +1749,52 @@ class MainMenu(ctk.CTk):
             
         except Exception as e:
             messagebox.showerror("Erreur", f"Erreur lors de la modification du mot de passe : {str(e)}")
+
+    def _handle_mousewheel(self, event, combobox, values):
+        """Gère le défilement de la molette pour les combobox.
+        
+        Args:
+            event: L'événement de la molette
+            combobox: Le combobox à mettre à jour
+            values: La liste des valeurs possibles
+        """
+        if not values:  # Si la liste est vide, on ne fait rien
+            return
+        
+        current = combobox.get()
+        try:
+            # Trouver l'index actuel
+            current_index = values.index(current)
+            
+            # Calculer le nouvel index en fonction du sens de rotation
+            # event.delta > 0 signifie que la molette tourne vers le haut
+            new_index = current_index - 1 if event.delta > 0 else current_index + 1
+            
+            # S'assurer que le nouvel index est dans les limites
+            new_index = max(0, min(new_index, len(values) - 1))
+            
+            # Mettre à jour la valeur
+            combobox.set(values[new_index])
+        except ValueError:
+            # Si la valeur actuelle n'est pas dans la liste, on commence au début
+            combobox.set(values[0])
+
+    def toggle_music(self):
+        """Bascule la lecture/pause de la musique."""
+        if not os.path.exists(self.music_path):
+            messagebox.showerror("Erreur", "Le fichier de musique n'a pas été trouvé")
+            return
+            
+        try:
+            if self.music_playing:
+                pygame.mixer.music.pause()
+                self.btn_music.configure(text="▶")
+            else:
+                pygame.mixer.music.unpause() if pygame.mixer.music.get_pos() > 0 else pygame.mixer.music.play(-1)
+                self.btn_music.configure(text="⏸")
+            self.music_playing = not self.music_playing
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Erreur lors de la lecture de la musique : {str(e)}")
 
 if __name__ == "__main__":
     app = SignUpFrame()
