@@ -18,6 +18,7 @@ from ressources import allinfos as infos
 from ressources import bdd_users
 from ressources import manip_bd
 from ressources.request_bd import db
+from ressources.send_mail import global_email_manager
 
 class SignUpFrame(ctk.CTk):
     """Fenêtre de connexion de l'application.
@@ -598,7 +599,6 @@ class MainMenu(ctk.CTk):
         self.email_entry.pack(side="left", padx=5)
         
         # Récupération du dernier destinataire
-        from ressources.send_mail import global_email_manager
         last_recipient = global_email_manager.get_last_recipient()
         if last_recipient:
             self.email_entry.insert(0, last_recipient)
@@ -617,7 +617,6 @@ class MainMenu(ctk.CTk):
         self.send_button.pack(side="left", padx=5)
         
         # Label pour afficher la date du dernier envoi
-        from ressources.send_mail import global_email_manager
         last_send_date = global_email_manager.get_last_send_date()
         
         self.last_send_label = ctk.CTkLabel(
@@ -632,39 +631,10 @@ class MainMenu(ctk.CTk):
         
     def send_stats_report(self):
         """Envoie le rapport statistique par email."""
-        from ressources.send_mail import envoyer_rapport_statistiques
-        
-        # Récupération de l'email
-        email = self.email_entry.get().strip()
-        
-        # Validation basique de l'email
-        if not email or "@" not in email or "." not in email:
-            messagebox.showerror("Erreur", "Veuillez entrer une adresse email valide")
-            return
-        
-        # Désactivation du bouton pendant l'envoi
-        self.send_button.configure(state="disabled", text="Envoi en cours...")
-        
         try:
-            # Envoi du rapport
-            success = envoyer_rapport_statistiques(email)
-            
-            if success:
-                # Mise à jour de la date du dernier envoi
-                from ressources.send_mail import global_email_manager
-                last_send_date = global_email_manager.get_last_send_date()
-                self.last_send_label.configure(text=f"Dernier envoi : {last_send_date}")
-                
-                messagebox.showinfo("Succès", "Le rapport a été envoyé avec succès")
-            else:
-                messagebox.showerror("Erreur", "Échec de l'envoi du rapport")
-                
+            global_email_manager.envoyer_rapport_statistiques("destinataire@example.com")
         except Exception as e:
-            messagebox.showerror("Erreur", f"Une erreur est survenue : {str(e)}")
-            
-        finally:
-            # Réactivation du bouton
-            self.send_button.configure(state="normal", text="Envoyer le rapport")
+            print(f"Erreur lors de l'envoi du rapport : {str(e)}")
 
     def on_users(self):
         # Vérification des droits admin

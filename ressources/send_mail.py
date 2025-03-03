@@ -5,7 +5,6 @@ pour l'application Méca'STUFF.
 
 # Imports de la bibliothèque standard
 import io
-import json
 import os
 from datetime import datetime
 from email.mime.image import MIMEImage
