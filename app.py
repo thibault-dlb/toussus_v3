@@ -780,7 +780,7 @@ class MainMenu(ctk.CTk):
         self.tab_control.set("Rechercher du matériel")
     
     def on_stats(self):
-        """Gère l'ouverture de l'onglet Statistiques."""
+        #Gère l'ouverture de l'onglet Statistiques.
         if "Statistiques" in self.tabs:
             self.tab_control.set("Statistiques")
             return
